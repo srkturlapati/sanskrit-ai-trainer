@@ -2,7 +2,42 @@ import sys
 import os
 import time
 import io
+# In-app Voice Input Widget (Works on Mobile & Laptop)
+audio_data = st.audio_input("🎙️ Speak your question / वदतु:")
 
+if audio_data is not None:
+    # Read the audio bytes and pass directly to Gemini
+    audio_bytes = audio_data.getvalue()
+    
+    with st.chat_message("user"):
+        st.audio(audio_data, format="audio/wav")
+        st.write("🎙️ *Audio Question Submitted*")
+    
+    with st.chat_message("assistant"):
+        with st.spinner("आचार्यः शृणोति एवं चिन्तयति... (Listening & Thinking)"):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
+                                {"text": "Listen to this audio, transcribe what the student asked, answer the question in Sanskrit, and provide grammatical guidance as Acharya."}
+                            ]
+                        }
+                    ],
+                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
+                )
+                st.markdown(response.text)
+                
+                # Audio playback for response
+                if "[संस्कृतम्]:" in response.text:
+                    s_text = response.text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                    play_sanskrit_audio(s_text)
+            except Exception as e:
+                st.error(f"Error processing audio: {str(e)}")
+st.chat_input
 # Ensure UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
     try:
