@@ -134,7 +134,7 @@ if "messages" not in st.session_state or len(st.session_state.messages) == 0:
     elif "Sanskrit ➔ Any Language" in app_mode:
         init_text = f"🚩 **संस्कृतम् ➔ {target_lang}**\nEnter any Sanskrit sentence, śloka, or phrase to get its full translation in **{target_lang}** with word-by-word analysis."
     else:
-        init_text = "[संस्कृतम्]: हरिः ॐ! भवतः/भवत्याः नाम किम्?\n[IAST]: Harih Om! Bhavatah/Bhavatyah nama kim?\n[English]: Hello! What is your name?"
+        init_text = "[संस्कृतम्]: हरिः ॐ! भवतः/भवत्याः नाम किम्?\n[IAST]: Harih Om! Bhavatah/Bhavatyah nama kim?\n[English]: Hello! What is your name?",
     
     st.session_state.messages = [{"role": "model", "content": init_text}]
 
@@ -191,7 +191,7 @@ if user_input := st.chat_input(input_placeholder):
             for attempt in range(3):
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",
+                        model="gemini-3.6-flash",
                         contents=contents,
                         config={
                             "system_instruction": SYSTEM_PROMPT,
