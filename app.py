@@ -2,43 +2,8 @@ import sys
 import os
 import time
 import io
-# In-app Voice Input Widget (Works on Mobile & Laptop)
-audio_data = st.audio_input("🎙️ Speak your question / वदतु:")
 
-if audio_data is not None:
-    # Read the audio bytes and pass directly to Gemini
-    audio_bytes = audio_data.getvalue()
-    
-    with st.chat_message("user"):
-        st.audio(audio_data, format="audio/wav")
-        st.write("🎙️ *Audio Question Submitted*")
-    
-    with st.chat_message("assistant"):
-        with st.spinner("आचार्यः शृणोति एवं चिन्तयति... (Listening & Thinking)"):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=[
-                        {
-                            "role": "user",
-                            "parts": [
-                                {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": "Listen to this audio, transcribe what the student asked, answer the question in Sanskrit, and provide grammatical guidance as Acharya."}
-                            ]
-                        }
-                    ],
-                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
-                )
-                st.markdown(response.text)
-                
-                # Audio playback for response
-                if "[संस्कृतम्]:" in response.text:
-                    s_text = response.text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-                    play_sanskrit_audio(s_text)
-            except Exception as e:
-                st.error(f"Error processing audio: {str(e)}")
-st.chat_input
-# Ensure UTF-8 encoding
+# Ensure UTF-8 encoding across environments
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -52,14 +17,14 @@ from gtts import gTTS
 import streamlit as st
 
 st.set_page_config(
-    page_title="Complete Sanskrit AI Trainer",
+    page_title="Sanskrit AI Platform",
     page_icon="🚩",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-st.title("🚩 Complete Sanskrit AI Platform")
-st.caption("सम्भाषणम् • अनुवादकः • व्याकरणम् • परीक्षा | Audio-Enabled Sanskrit Ecosystem")
+st.title("🚩 Sanskrit AI Platform")
+st.caption("सम्भाषणम् • अनुवादकः • व्याकरणम् • परीक्षा | Voice-Enabled Sanskrit Ecosystem")
 
 # --- SIDEBAR: Settings & Navigation ---
 with st.sidebar:
@@ -106,14 +71,15 @@ with st.sidebar:
     
     if st.button("🔄 Reset Module Session"):
         st.session_state.messages = []
-        st.session_state.quiz_data = None
+        st.session_state.current_quiz = None
         st.rerun()
 
-# Helper function to generate Sanskrit Audio (TTS)
+# Helper function for Sanskrit Audio Playback (TTS)
 def play_sanskrit_audio(text_to_speak: str):
     try:
-        # Strip markdown syntax for clean audio
-        clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '')
+        clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').strip()
+        if not clean_text:
+            return
         tts = gTTS(text=clean_text, lang='hi', slow=False)
         audio_fp = io.BytesIO()
         tts.write_to_fp(audio_fp)
@@ -124,7 +90,7 @@ def play_sanskrit_audio(text_to_speak: str):
 
 
 # =========================================================
-# MODULE 1: SAMBHASHANAM (Conversational Tutor)
+# MODULE 1: SAMBHASHANAM (Conversational Tutor + Voice)
 # =========================================================
 if "Sambhashanam" in app_module:
     SYSTEM_PROMPT = f"""You are "Acharya AI" (आचार्यः), a pedagogical Sanskrit tutor specializing in Sarala Samskritam.
@@ -132,7 +98,7 @@ Current Student Level: {level}.
 
 Rules:
 1. Converse naturally in simple Sanskrit suited to the level.
-2. If student makes a grammatical error (Vibhakti, Lakara, Purusha, Sandhi):
+2. If student speaks/writes with an error (Vibhakti, Lakara, Purusha, Sandhi):
    - Highlight the error gently.
    - Provide a Socratic hint or question so they can self-correct.
 3. Always format your output cleanly as:
@@ -157,11 +123,54 @@ Rules:
         with st.chat_message(role):
             st.markdown(msg["content"])
             if role == "assistant":
-                # Extract Devanagari lines for TTS
                 lines = [line.replace("[संस्कृतम्]:", "").strip() for line in msg["content"].split("\n") if "[संस्कृतम्]:" in line]
                 if lines:
                     play_sanskrit_audio(lines[0])
 
+    # 🎙️ In-App Microphone Recording Widget
+    st.write("---")
+    st.write("🎙️ **Oral / Voice Question (वदतु):**")
+    audio_data = st.audio_input("Record your voice / स्वध्वनिं मुद्रयतु:")
+
+    # Handle Audio Voice Input
+    if audio_data is not None:
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+
+        client = genai.Client(api_key=api_key)
+        audio_bytes = audio_data.getvalue()
+
+        st.session_state.messages.append({"role": "user", "content": "🎙️ [Oral Voice Input Submitted]"})
+        with st.chat_message("user"):
+            st.audio(audio_data, format="audio/wav")
+            st.caption("🎙️ Oral Question Submitted")
+
+        with st.chat_message("assistant"):
+            with st.spinner("आचार्यः शृणोति एवं चिन्तयति... (Listening & Thinking)"):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.6-flash",
+                        contents=[
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
+                                    {"text": f"{SYSTEM_PROMPT}\nListen to this student's spoken audio. Transcribe what they said, provide the Acharya response in simple Sanskrit, and add guidance if needed."}
+                                ]
+                            }
+                        ],
+                    )
+                    reply = response.text
+                    st.markdown(reply)
+                    lines = [line.replace("[संस्कृतम्]:", "").strip() for line in reply.split("\n") if "[संस्कृतम्]:" in line]
+                    if lines:
+                        play_sanskrit_audio(lines[0])
+                    st.session_state.messages.append({"role": "model", "content": reply})
+                except Exception as e:
+                    st.error(f"Error processing audio: {str(e)}")
+
+    # Handle Text Input
     if user_input := st.chat_input("Type in Sanskrit or English (e.g. mama nama...)..."):
         if not api_key:
             st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
@@ -241,27 +250,41 @@ Output Format:
 """
 
     st.subheader(f"🌐 {trans_direction}")
-    user_query = st.text_area("Enter text to translate:", height=100)
     
-    if st.button("Translate / अनुवादं कुरु"):
+    # Text translation input
+    user_query = st.text_area("Enter text to translate (or record oral voice below):", height=90)
+    
+    # Oral Voice for Translation
+    st.write("🎙️ **Or speak to translate:**")
+    trans_audio = st.audio_input("Speak sentence to translate:")
+    
+    if st.button("Translate / अनुवादं कुरु") or (trans_audio is not None):
         if not api_key:
             st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
-            st.stop()
-        if not user_query.strip():
-            st.warning("Please enter text to translate.")
             st.stop()
 
         client = genai.Client(api_key=api_key)
         with st.spinner("Translating..."):
             try:
+                if trans_audio is not None:
+                    payload = [
+                        {"inline_data": {"mime_type": "audio/wav", "data": trans_audio.getvalue()}},
+                        {"text": f"{SYSTEM_PROMPT}\nListen to this speech and execute the translation."}
+                    ]
+                else:
+                    if not user_query.strip():
+                        st.warning("Please enter text or record audio.")
+                        st.stop()
+                    payload = [{"text": user_query}]
+
                 resp = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=[{"role": "user", "parts": [{"text": user_query}]}],
+                    contents=[{"role": "user", "parts": payload}],
                     config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
                 )
                 st.markdown(resp.text)
                 
-                # Audio playback for Sanskrit sentence
+                # Audio playback for translated Sanskrit sentence
                 if "संस्कृतम् (Devanagari):" in resp.text:
                     s_text = resp.text.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
                     st.write("🔊 **उच्चारणम् (Pronunciation Audio):**")
@@ -296,14 +319,14 @@ elif "Vyakarana Engine" in app_module:
             st.warning("Please enter a term to analyze.")
             st.stop()
 
-        SYSTEM_PROMPT_VYAK = f"""You are "Panini AI", an absolute computational Sanskrit grammarian.
+        SYSTEM_PROMPT_VYAK = f"""You are "Panini AI", an expert computational Sanskrit grammarian.
 Tool Selected: {vyakarana_tool}.
 Proficiency Level: {level}.
 
 Provide an exact, structured breakdown adhering to Paninian Ashtadhyayi rules:
 1. Provide Sanskrit Sutra references (e.g. आद्गुणः ६.१.८७, इको यणचि ६.१.७७, etc.).
 2. Use clear Markdown tables for 8 Vibhaktis (Prathama to Sambodhana in Ekavacana, Dvivacana, Bahuvacana) or Lakaras (Prathama, Madhyama, Uttama Purusha).
-3. Provide IAST transliteration and English meanings for every form.
+3. Provide IAST transliteration and English meanings for each form.
 """
         client = genai.Client(api_key=api_key)
         with st.spinner("व्याकरण-विश्लेषणं प्रचलति..."):
