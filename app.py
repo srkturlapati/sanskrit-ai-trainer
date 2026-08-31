@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import io
 
 # Ensure UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
@@ -12,21 +13,22 @@ if sys.stdout.encoding != 'utf-8':
 from google import genai
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
+from gtts import gTTS
 import streamlit as st
 
 st.set_page_config(
-    page_title="Universal Sanskrit AI Platform",
+    page_title="Complete Sanskrit AI Trainer",
     page_icon="🚩",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-st.title("🚩 Sanskrit AI Platform (सम्भाषणम् & उभय-अनुवादकः)")
-st.caption("Bidirectional Sanskrit Translator & Pedagogical Conversational Tutor")
+st.title("🚩 Complete Sanskrit AI Platform")
+st.caption("सम्भाषणम् • अनुवादकः • व्याकरणम् • परीक्षा | Audio-Enabled Sanskrit Ecosystem")
 
-# --- SIDEBAR: Configuration ---
+# --- SIDEBAR: Settings & Navigation ---
 with st.sidebar:
-    st.header("⚙️ Configuration / विन्यासः")
+    st.header("⚙️ Settings & Modules / विन्यासः")
     api_key = st.text_input(
         "Google Gemini API Key",
         type="password",
@@ -35,81 +37,61 @@ with st.sidebar:
         help="Get your free key at aistudio.google.com/apikey",
     )
     
-    app_mode = st.radio(
-        "Select Mode / कार्यपद्धतिः",
+    app_module = st.radio(
+        "Select Active Module / विभागः",
         [
-            "🌐 Any Language ➔ Sanskrit (अन्यभाषा ➔ संस्कृतम्)",
-            "📖 Sanskrit ➔ Any Language (संस्कृतम् ➔ अन्यभाषा)",
-            "💬 Conversational Tutor (सम्भाषणम्)"
+            "💬 Module 1: Sambhashanam (सम्भाषणम्)",
+            "🌐 Module 1: Universal Translation (अनुवादकः)",
+            "🧩 Module 2: Vyakarana Engine (व्याकरणम्)",
+            "📝 Module 3: Pariksha & Drills (परीक्षा)"
         ],
         index=0
     )
     
     level = st.selectbox(
-        "Proficiency Level / स्तरः",
+        "Proficiency Tier / स्तरः",
         [
-            "Beginner (प्रथमा - Simple & Direct)",
-            "Intermediate (मध्यमा - Tenses & Participles)",
-            "Advanced (उत्तमा - Classical, Sandhi & Samasa)"
+            "Beginner (प्रथमा - Basic)",
+            "Intermediate (मध्यमा - Moderate)",
+            "Advanced (उत्तमा - Classical/Shastric)"
         ],
         index=0,
     )
     
-    if "Sanskrit ➔ Any Language" in app_mode:
-        target_lang = st.selectbox(
-            "Translate Sanskrit Into / लक्ष्यभाषा",
-            ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)", "Malayalam (മലയാളം)", "Bengali (বাংলা)", "Gujarati (ગુજરાતી)"],
-            index=0
+    if "Universal Translation" in app_module:
+        trans_direction = st.selectbox(
+            "Translation Mode",
+            ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"]
         )
+        if trans_direction == "Sanskrit ➔ Any Language":
+            target_lang = st.selectbox(
+                "Target Language / लक्ष्यभाषा",
+                ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)", "Malayalam (മലയാളം)", "Bengali (বাংলা)", "Gujarati (ગુજરાતી)"]
+            )
     
-    if st.button("🔄 Reset Session / पुनरारम्भः"):
+    if st.button("🔄 Reset Module Session"):
         st.session_state.messages = []
+        st.session_state.quiz_data = None
         st.rerun()
 
-# --- SYSTEM PROMPT GENERATION ---
-if "Any Language ➔ Sanskrit" in app_mode:
-    SYSTEM_PROMPT = f"""You are "Acharya Anuvadaka" (अनुवादकः), an expert translator converting Indian and world languages into Sanskrit.
-Target Level: {level}.
+# Helper function to generate Sanskrit Audio (TTS)
+def play_sanskrit_audio(text_to_speak: str):
+    try:
+        # Strip markdown syntax for clean audio
+        clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '')
+        tts = gTTS(text=clean_text, lang='hi', slow=False)
+        audio_fp = io.BytesIO()
+        tts.write_to_fp(audio_fp)
+        audio_fp.seek(0)
+        st.audio(audio_fp, format="audio/mp3")
+    except Exception:
+        pass
 
-CRITICAL INSTRUCTIONS:
-1. Output the FULL translated Sanskrit sentence first in both Devanagari and IAST.
-2. Provide a clear word-by-word grammatical breakdown.
 
-Output Format:
-### 🪶 पूर्णवाक्यम् (Complete Sanskrit Sentence):
-**संस्कृतम् (Devanagari):** <FULL TRANSLATED SENTENCE>
-**IAST Transliteration:** <Sentence in IAST>
-**English Meaning:** <Complete English translation>
-
----
-### 🔍 व्याकरणम् एवं पदच्छेदः (Word-by-Word Analysis):
-- **<Word>**: <Pratipadika/Dhatu> + <Vibhakti/Pratyaya> — <Meaning>
-- **विशेष-नियमः (Key Rule applied)**: <Brief grammar note>
-"""
-
-elif "Sanskrit ➔ Any Language" in app_mode:
-    SYSTEM_PROMPT = f"""You are "Acharya Vyakhyata" (व्याख्याता), an expert scholar translating and analyzing Sanskrit text into {target_lang}.
-
-Target Explanation Level: {level}.
-
-CRITICAL INSTRUCTIONS:
-1. Accept Sanskrit input in Devanagari or Roman transliteration.
-2. Perform Sandhi-viccheda (word splitting) if words are fused.
-3. Provide the full, fluent translation in {target_lang} as well as in English.
-4. Give a word-by-word Pratipadartha (प्रतिपदार्थः) table or list.
-
-Output Format:
-### 🎯 अनुवादः (Translation in {target_lang}):
-**{target_lang}:** <Accurate, natural translation in {target_lang}>
-**English:** <Fluent English translation>
-
----
-### 📜 पदच्छेदः एवं प्रतिपदार्थः (Word-by-Word Breakdown):
-- **<Sanskrit Word (पदम्)>**: <Meaning in {target_lang}> (<Grammar/Vibhakti tag>)
-- **अन्वयः / तात्पर्यार्थः (Core Essence & Context)**: <Brief summary>
-"""
-
-else:
+# =========================================================
+# MODULE 1: SAMBHASHANAM (Conversational Tutor)
+# =========================================================
+if "Sambhashanam" in app_module:
     SYSTEM_PROMPT = f"""You are "Acharya AI" (आचार्यः), a pedagogical Sanskrit tutor specializing in Sarala Samskritam.
 Current Student Level: {level}.
 
@@ -127,40 +109,30 @@ Rules:
 - Hint: <Guiding hint or rule>
 """
 
-# --- INITIALIZE MESSAGES ---
-if "messages" not in st.session_state or len(st.session_state.messages) == 0:
-    if "Any Language ➔ Sanskrit" in app_mode:
-        init_text = "🚩 **अन्यभाषा ➔ संस्कृतम्**\nEnter any sentence in **Telugu, Hindi, English, Tamil, etc.** to get the complete Sanskrit translation and grammatical breakdown."
-    elif "Sanskrit ➔ Any Language" in app_mode:
-        init_text = f"🚩 **संस्कृतम् ➔ {target_lang}**\nEnter any Sanskrit sentence, śloka, or phrase to get its full translation in **{target_lang}** with word-by-word analysis."
-    else:
-        init_text = "[संस्कृतम्]: हरिः ॐ! भवतः/भवत्याः नाम किम्?\n[IAST]: Harih Om! Bhavatah/Bhavatyah nama kim?\n[English]: Hello! What is your name?",
-    
-    st.session_state.messages = [{"role": "model", "content": init_text}]
+    if "messages" not in st.session_state or len(st.session_state.messages) == 0:
+        st.session_state.messages = [
+            {
+                "role": "model",
+                "content": "[संस्कृतम्]: हरिः ॐ! भवतः/भवत्याः नाम किम्?\n[IAST]: Harih Om! Bhavatah/Bhavatyah nama kim?\n[English]: Hello! What is your name?",
+            }
+        ]
 
-# Display chat history
-for msg in st.session_state.messages:
-    role = "assistant" if msg["role"] == "model" else "user"
-    with st.chat_message(role):
-        st.markdown(msg["content"])
+    for msg in st.session_state.messages:
+        role = "assistant" if msg["role"] == "model" else "user"
+        with st.chat_message(role):
+            st.markdown(msg["content"])
+            if role == "assistant":
+                # Extract Devanagari lines for TTS
+                lines = [line.replace("[संस्कृतम्]:", "").strip() for line in msg["content"].split("\n") if "[संस्कृतम्]:" in line]
+                if lines:
+                    play_sanskrit_audio(lines[0])
 
-# --- USER INPUT ---
-if "Any Language ➔ Sanskrit" in app_mode:
-    input_placeholder = "Type in Telugu, Hindi, English, etc. (e.g. నేను చదువుతున్నాను)..."
-elif "Sanskrit ➔ Any Language" in app_mode:
-    input_placeholder = "Type or paste Sanskrit text (e.g. सत्यमेव जयते नानृतम् / aham pathami)..."
-else:
-    input_placeholder = "Type in Sanskrit / English..."
+    if user_input := st.chat_input("Type in Sanskrit or English (e.g. mama nama...)..."):
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
 
-if user_input := st.chat_input(input_placeholder):
-    if not api_key:
-        st.warning("⚠️ Please open the sidebar and enter your Gemini API key.")
-        st.stop()
-
-    client = genai.Client(api_key=api_key)
-
-    # Transliterate for conversation mode
-    if app_mode.startswith("💬"):
+        client = genai.Client(api_key=api_key)
         is_devanagari = any("\u0900" <= char <= "\u097f" for char in user_input)
         if not is_devanagari:
             try:
@@ -170,42 +142,203 @@ if user_input := st.chat_input(input_placeholder):
                 display_text = user_input
         else:
             display_text = user_input
+
+        st.session_state.messages.append({"role": "user", "content": display_text})
+        with st.chat_message("user"):
+            st.markdown(display_text)
+
+        contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.messages]
+
+        with st.chat_message("assistant"):
+            with st.spinner("आचार्यः चिन्तयति..."):
+                reply = None
+                for _ in range(3):
+                    try:
+                        resp = client.models.generate_content(
+                            model="gemini-3.6-flash",
+                            contents=contents,
+                            config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
+                        )
+                        reply = resp.text
+                        break
+                    except Exception:
+                        time.sleep(1.5)
+
+                if reply:
+                    st.markdown(reply)
+                    lines = [line.replace("[संस्कृतम्]:", "").strip() for line in reply.split("\n") if "[संस्कृतम्]:" in line]
+                    if lines:
+                        play_sanskrit_audio(lines[0])
+                    st.session_state.messages.append({"role": "model", "content": reply})
+
+
+# =========================================================
+# MODULE 1: UNIVERSAL TRANSLATION ENGINE
+# =========================================================
+elif "Universal Translation" in app_module:
+    if trans_direction == "Any Language ➔ Sanskrit":
+        SYSTEM_PROMPT = f"""You are "Acharya Anuvadaka" (अनुवादकः). Translate input into Sanskrit.
+Target Level: {level}.
+
+MANDATORY OUTPUT FORMAT:
+### 🪶 पूर्णवाक्यम् (Complete Sanskrit Sentence):
+**संस्कृतम् (Devanagari):** <FULL TRANSLATED SENTENCE>
+**IAST Transliteration:** <Sentence in IAST>
+**English Meaning:** <Complete English translation>
+
+---
+### 🔍 व्याकरणम् एवं पदच्छेदः (Word-by-Word Analysis):
+- **<Word>**: <Pratipadika/Dhatu> + <Vibhakti/Pratyaya> — <Meaning>
+- **विशेष-नियमः (Key Rule applied)**: <Brief grammar note>
+"""
     else:
-        display_text = user_input
+        SYSTEM_PROMPT = f"""You are "Acharya Vyakhyata" (व्याख्याता). Translate Sanskrit into {target_lang}.
+Target Level: {level}.
 
-    st.session_state.messages.append({"role": "user", "content": display_text})
-    with st.chat_message("user"):
-        st.markdown(display_text)
+Output Format:
+### 🎯 अनुवादः (Translation in {target_lang}):
+**{target_lang}:** <Accurate translation>
+**English:** <Fluent English translation>
 
-    # Prepare chat payload
-    contents = []
-    for m in st.session_state.messages:
-        role = "user" if m["role"] == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": str(m["content"])}]})
+---
+### 📜 पदच्छेदः एवं प्रतिपदार्थः (Word-by-Word Breakdown):
+- **<Sanskrit Word>**: <Meaning in {target_lang}> (<Grammar tag>)
+"""
 
-    with st.chat_message("assistant"):
-        with st.spinner("प्रक्रिया प्रचलति... (Processing...)"):
-            reply = None
-            last_err = None
+    st.subheader(f"🌐 {trans_direction}")
+    user_query = st.text_area("Enter text to translate:", height=100)
+    
+    if st.button("Translate / अनुवादं कुरु"):
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+        if not user_query.strip():
+            st.warning("Please enter text to translate.")
+            st.stop()
 
-            for attempt in range(3):
-                try:
-                    response = client.models.generate_content(
-                        model="gemini-3.6-flash",
-                        contents=contents,
-                        config={
-                            "system_instruction": SYSTEM_PROMPT,
-                            "temperature": 0.2,
-                        },
-                    )
-                    reply = response.text
-                    break
-                except Exception as e:
-                    last_err = e
-                    time.sleep(1.5)
+        client = genai.Client(api_key=api_key)
+        with st.spinner("Translating..."):
+            try:
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{"role": "user", "parts": [{"text": user_query}]}],
+                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
+                )
+                st.markdown(resp.text)
+                
+                # Audio playback for Sanskrit sentence
+                if "संस्कृतम् (Devanagari):" in resp.text:
+                    s_text = resp.text.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
+                    st.write("🔊 **उच्चारणम् (Pronunciation Audio):**")
+                    play_sanskrit_audio(s_text)
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
 
-            if reply:
-                st.markdown(reply)
-                st.session_state.messages.append({"role": "model", "content": reply})
-            else:
-                st.error(f"Error: {str(last_err)}")
+
+# =========================================================
+# MODULE 2: VYAKARANA ENGINE (Grammar, Sandhi, Shabda/Dhatu)
+# =========================================================
+elif "Vyakarana Engine" in app_module:
+    st.subheader("🧩 व्याकरण-विश्लेषकः (Sanskrit Grammar Engine)")
+    
+    vyakarana_tool = st.selectbox(
+        "Select Tool / उपकरणम्",
+        [
+            "Sandhi Splitter & Joiner (सन्धि-विच्छेदः / सन्धि-कार्यम्)",
+            "Shabdarupa Tables (शब्दरूपाणि - 8 Vibhaktis)",
+            "Dhaturupa Conjugator (धातुरूपाणि - 10 Lakaras)",
+            "Samasa & Vigraha Vakya (समास-विग्रहः)"
+        ]
+    )
+    
+    vyak_input = st.text_input("Enter Word / Root / Sentence (e.g. देवेशः / राम / गम् / पीताम्बरः):")
+    
+    if st.button("Analyze / विश्लेषणं कुरु"):
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+        if not vyak_input.strip():
+            st.warning("Please enter a term to analyze.")
+            st.stop()
+
+        SYSTEM_PROMPT_VYAK = f"""You are "Panini AI", an absolute computational Sanskrit grammarian.
+Tool Selected: {vyakarana_tool}.
+Proficiency Level: {level}.
+
+Provide an exact, structured breakdown adhering to Paninian Ashtadhyayi rules:
+1. Provide Sanskrit Sutra references (e.g. आद्गुणः ६.१.८७, इको यणचि ६.१.७७, etc.).
+2. Use clear Markdown tables for 8 Vibhaktis (Prathama to Sambodhana in Ekavacana, Dvivacana, Bahuvacana) or Lakaras (Prathama, Madhyama, Uttama Purusha).
+3. Provide IAST transliteration and English meanings for every form.
+"""
+        client = genai.Client(api_key=api_key)
+        with st.spinner("व्याकरण-विश्लेषणं प्रचलति..."):
+            try:
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{"role": "user", "parts": [{"text": f"Tool: {vyakarana_tool}\nInput: {vyak_input}"}]}],
+                    config={"system_instruction": SYSTEM_PROMPT_VYAK, "temperature": 0.1},
+                )
+                st.markdown(resp.text)
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+
+
+# =========================================================
+# MODULE 3: PARIKSHA & DRILLS ENGINE (Quizzes & Tests)
+# =========================================================
+elif "Pariksha & Drills" in app_module:
+    st.subheader("📝 संस्कृत-परीक्षा एवं अभ्यासः (Assessment Engine)")
+    
+    quiz_topic = st.selectbox(
+        "Quiz Topic / विषयः",
+        [
+            "Vibhakti & Karaka Agreement (विभक्ति-अभ्यासः)",
+            "Dhaturoopa & Lakara Tense Conjugation (धातुरूप-अभ्यासः)",
+            "Sandhi Identification & Splitting (सन्धि-परीक्षा)",
+            "Sentence Translation Challenges (अनुवाद-परीक्षा)"
+        ]
+    )
+    
+    if "current_quiz" not in st.session_state:
+        st.session_state.current_quiz = None
+
+    if st.button("⚡ Generate New Quiz / नूतन-प्रश्नावली"):
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+
+        SYSTEM_PROMPT_QUIZ = f"""You are "Acharya Parikshaka".
+Generate an interactive Sanskrit quiz for Level: {level}.
+Topic: {quiz_topic}.
+
+Create 3 distinct questions.
+For each question:
+1. State the Question clearly in Devanagari, IAST, and English.
+2. Provide 4 options (A, B, C, D).
+3. Clearly mark the Correct Answer and provide a detailed grammatical explanation (Prakriti + Pratyaya / Sutra).
+
+Format:
+### प्रश्नः १: <Question>
+- A) <Option 1>
+- B) <Option 2>
+- C) <Option 3>
+- D) <Option 4>
+
+**उत्तरम् (Correct Answer):** <Option Letter & Answer>
+**स्पष्टीकरणम् (Explanation):** <Grammar explanation>
+---
+"""
+        client = genai.Client(api_key=api_key)
+        with st.spinner("प्रश्नावली निर्मीयते..."):
+            try:
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{"role": "user", "parts": [{"text": f"Generate a 3-question test on {quiz_topic}"}]}],
+                    config={"system_instruction": SYSTEM_PROMPT_QUIZ, "temperature": 0.3},
+                )
+                st.session_state.current_quiz = resp.text
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+
+    if st.session_state.current_quiz:
+        st.markdown(st.session_state.current_quiz)
