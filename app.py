@@ -70,7 +70,9 @@ for msg in st.session_state.messages:
 # User chat input
 if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama...)..."):
     if not api_key:
-        st.warning("⚠️ Please open the sidebar (top-left arrow) and enter your free Gemini API key.")
+        st.warning(
+            "⚠️ Please open the sidebar (top-left arrow) and enter your free Gemini API key."
+        )
         st.stop()
 
     client = genai.Client(api_key=api_key)
@@ -100,8 +102,8 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
 
     with st.chat_message("assistant"):
         with st.spinner("आचार्यः चिन्तयति..."):
-            # List of fallback models in case of server load
-            candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+            # Active candidate models
+            candidate_models = ["gemini-2.5-flash", "gemini-3.1-pro-preview"]
             reply = None
             last_error = None
 
@@ -110,7 +112,10 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
                     response = client.models.generate_content(
                         model=model_name,
                         contents=contents,
-                        config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.3},
+                        config={
+                            "system_instruction": SYSTEM_PROMPT,
+                            "temperature": 0.3,
+                        },
                     )
                     reply = response.text
                     break
@@ -120,6 +125,8 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
 
             if reply:
                 st.markdown(reply)
-                st.session_state.messages.append({"role": "model", "content": reply})
+                st.session_state.messages.append(
+                    {"role": "model", "content": reply}
+                )
             else:
-                st.error(f"Error: {str(last_error)}. Please try sending the message again in a moment.")
+                st.error(f"Error: {str(last_error)}")
