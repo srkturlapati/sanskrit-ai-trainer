@@ -4,7 +4,7 @@ from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 import streamlit as st
 
-# Set mobile-friendly screen layout
+# Mobile-friendly screen layout
 st.set_page_config(
     page_title="Sambhāṣaṇa AI",
     page_icon="🚩",
@@ -13,9 +13,9 @@ st.set_page_config(
 )
 
 st.title("🚩 सम्भाषणम् AI")
-st.caption("सरल-संस्कृत-सम्भाषण-प्रशिक्षकः | Sanskrit AI Tutor (Free Gemini)")
+st.caption("सरल-संस्कृत-सम्भाषण-प्रशिक्षकः | Sanskrit AI Tutor")
 
-# Sidebar for free key & level selection
+# Sidebar for configuration
 with st.sidebar:
     st.header("⚙️ Settings / विन्यासः")
     api_key = st.text_input(
@@ -70,9 +70,7 @@ for msg in st.session_state.messages:
 # User chat input
 if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama...)..."):
     if not api_key:
-        st.warning(
-            "⚠️ Please open the sidebar (top-left arrow) and enter your free Gemini API key."
-        )
+        st.warning("⚠️ Please open the sidebar (top-left arrow) and enter your free Gemini API key.")
         st.stop()
 
     client = genai.Client(api_key=api_key)
@@ -102,14 +100,26 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
 
     with st.chat_message("assistant"):
         with st.spinner("आचार्यः चिन्तयति..."):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=contents,
-                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.3},
-                )
-                reply = response.text
+            # List of fallback models in case of server load
+            candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+            reply = None
+            last_error = None
+
+            for model_name in candidate_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.3},
+                    )
+                    reply = response.text
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+
+            if reply:
                 st.markdown(reply)
                 st.session_state.messages.append({"role": "model", "content": reply})
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            else:
+                st.error(f"Error: {str(last_error)}. Please try sending the message again in a moment.")
