@@ -1,7 +1,8 @@
 import sys
 import os
+import time
 
-# Enforce UTF-8 encoding across the environment
+# Ensure UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -109,14 +110,14 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
 
     with st.chat_message("assistant"):
         with st.spinner("Acharya is thinking..."):
-            candidate_models = ["gemini-2.5-flash", "gemini-3.1-pro-preview"]
             reply = None
-            last_error = None
+            last_err = None
 
-            for model_name in candidate_models:
+            # Retry up to 3 times with brief pause if server is busy (503)
+            for attempt in range(3):
                 try:
                     response = client.models.generate_content(
-                        model=model_name,
+                        model="gemini-3.6-flash",
                         contents=contents,
                         config={
                             "system_instruction": SYSTEM_PROMPT,
@@ -126,8 +127,8 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
                     reply = response.text
                     break
                 except Exception as e:
-                    last_error = e
-                    continue
+                    last_err = e
+                    time.sleep(1.5)
 
             if reply:
                 st.markdown(reply)
@@ -135,4 +136,4 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
                     {"role": "model", "content": reply}
                 )
             else:
-                st.error(f"Error: {str(last_error)}")
+                st.error(f"Error: {str(last_err)}")
