@@ -12,16 +12,15 @@ st.set_page_config(
 )
 
 st.title("🚩 सम्भाषणम् AI")
-st.caption("सरल-संस्कृत-सम्भाषण-प्रशिक्षकः | Sanskrit AI Tutor (Gemini Free)")
+st.caption("सरल-संस्कृत-सम्भाषण-प्रशिक्षकः | Sanskrit AI Tutor (Free)")
 
 with st.sidebar:
     st.header("⚙️ Settings / विन्यासः")
     api_key = st.text_input(
         "Google Gemini API Key",
         type="password",
-        placeholder="AIza...",
+        placeholder="Paste your key here...",
         value=os.getenv("GEMINI_API_KEY", ""),
-        help="Get your free key from aistudio.google.com",
     )
     level = st.selectbox(
         "Proficiency Level / स्तरः",
@@ -65,9 +64,7 @@ for msg in st.session_state.messages:
 
 if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama...)..."):
     if not api_key:
-        st.warning(
-            "⚠️ Please open the sidebar (top-left arrow) and enter your free Gemini API key."
-        )
+        st.warning("⚠️ Please open the sidebar and enter your API key.")
         st.stop()
 
     client = genai.Client(api_key=api_key)
@@ -88,11 +85,13 @@ if user_input := st.chat_input("Type in Devanagari or English (e.g., mama nama..
     with st.chat_message("user"):
         st.markdown(display_text)
 
-    # Convert chat history for Gemini API
     contents = []
     for m in st.session_state.messages:
         contents.append(
-            {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
+            {
+                "role": "user" if m["role"] == "user" else "model",
+                "parts": [{"text": m["content"]}],
+            }
         )
 
     with st.chat_message("assistant"):
