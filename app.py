@@ -5,7 +5,6 @@ import io
 import sqlite3
 import datetime
 import base64
-import asyncio
 
 # Enforce UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
@@ -18,8 +17,8 @@ from google import genai
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
-import edge_tts
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -124,15 +123,7 @@ def save_feedback(teacher_name, user_prompt, response_text, fb_type, remark):
     conn.commit()
     conn.close()
 
-def get_all_feedbacks():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('SELECT id, timestamp, teacher_name, feedback_type, remark_text, acharya_response FROM feedback_logs ORDER BY id DESC')
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-# --- UI & AVATAR CSS ---
+# --- CSS & AVATAR TALKING ANIMATION ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -141,36 +132,36 @@ st.markdown("""
     .header-box {
         background: linear-gradient(135deg, #E65100 0%, #BF360C 50%, #212121 100%);
         border-radius: 16px;
-        padding: 20px 24px;
+        padding: 18px 24px;
         color: #FFFFFF;
         box-shadow: 0 8px 24px rgba(230, 81, 0, 0.25);
-        margin-bottom: 20px;
+        margin-bottom: 18px;
     }
     
     .avatar-wrapper {
         position: relative;
-        width: 120px;
-        height: 120px;
+        width: 110px;
+        height: 110px;
         margin: 0 auto;
     }
     
     .avatar-base {
-        width: 120px;
-        height: 120px;
+        width: 110px;
+        height: 110px;
         border-radius: 50%;
         object-fit: cover;
         border: 4px solid #FF8F00;
-        box-shadow: 0 0 20px rgba(255, 143, 0, 0.4);
+        box-shadow: 0 0 18px rgba(255, 143, 0, 0.4);
         transition: all 0.3s ease;
     }
     
     .talking-lip {
         position: absolute;
-        bottom: 22px;
+        bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
-        width: 22px;
-        height: 6px;
+        width: 20px;
+        height: 5px;
         background: #8D1414;
         border-radius: 50%;
         opacity: 0;
@@ -179,45 +170,44 @@ st.markdown("""
     
     .is-speaking .talking-lip {
         opacity: 0.95;
-        animation: mouthTalk 0.28s infinite alternate ease-in-out;
+        animation: mouthTalk 0.26s infinite alternate ease-in-out;
     }
     
     .is-speaking .avatar-base {
-        box-shadow: 0 0 30px rgba(255, 111, 0, 0.9);
-        transform: scale(1.04);
+        box-shadow: 0 0 28px rgba(255, 111, 0, 0.9);
+        transform: scale(1.03);
         border-color: #FFD54F;
     }
 
     @keyframes mouthTalk {
-        0% { height: 4px; width: 18px; border-radius: 50%; }
-        50% { height: 14px; width: 22px; border-radius: 40%; background: #5C0B0B; }
-        100% { height: 8px; width: 24px; border-radius: 50%; }
-    }
-
-    .voice-prompt-box {
-        background: rgba(255, 111, 0, 0.08);
-        border: 2px dashed #FF8F00;
-        border-radius: 14px;
-        padding: 16px;
-        margin-top: 20px;
-        text-align: center;
+        0% { height: 4px; width: 16px; border-radius: 50%; }
+        50% { height: 12px; width: 20px; border-radius: 40%; background: #5C0B0B; }
+        100% { height: 7px; width: 22px; border-radius: 50%; }
     }
 
     .status-badge {
         display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
+        padding: 3px 10px;
+        border-radius: 16px;
+        font-size: 0.78rem;
         font-weight: 600;
         background: rgba(76, 175, 80, 0.15);
         color: #81C784;
         border: 1px solid #4CAF50;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
+    }
+    
+    .remark-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 143, 0, 0.2);
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper: Load images from assets/ with absolute path
+# Helper: Load images from assets/ with absolute path fallback
 def get_avatar_img(base_name, fallback_url):
     extensions = [".jpeg", ".jpg", ".png", ".JPEG", ".JPG", ".PNG"]
     assets_dir = os.path.join(BASE_DIR, "assets")
@@ -237,69 +227,45 @@ male_src, male_status = get_avatar_img("male_guru", "https://upload.wikimedia.or
 female_src, female_status = get_avatar_img("female_guru", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png")
 child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs")
 
-# --- DISTINCT NEURAL VOICES CONFIGURATION ---
 TEACHERS = {
     "Male Guru (आचार्यः वसिष्ठः)": {
         "title": "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)",
-        "desc": "Classical Guru • Deep, Authoritative Neural Voice",
+        "desc": "Classical Guru • Deep Pedagogical Voice",
         "img": male_src,
         "status": male_status,
-        "voice": "hi-IN-MadhurNeural",
-        "rate": "+0%",
-        "pitch": "-4Hz"
+        "tld": "co.in",
+        "slow": True
     },
     "Female Āchāryā (आचार्या गार्गी)": {
         "title": "आचार्या गार्गी (Acharyaa Gargi)",
-        "desc": "Scholarly Preceptor • Clear, Melodic Neural Voice",
+        "desc": "Scholarly Preceptor • Warm & Melodic Voice",
         "img": female_src,
         "status": female_status,
-        "voice": "hi-IN-SwaraNeural",
-        "rate": "+0%",
-        "pitch": "+0Hz"
+        "tld": "com",
+        "slow": False
     },
     "Child Peer (बालकः ध्रुवः)": {
         "title": "बालकः ध्रुवः (Balaka Dhruva)",
-        "desc": "Playful Young Peer • Fast, High-Pitched Child Voice",
+        "desc": "Playful Young Peer • Fast & Cheerful Cadence",
         "img": child_src,
         "status": child_status,
-        "voice": "hi-IN-SwaraNeural",
-        "rate": "+15%",
-        "pitch": "+25Hz"
+        "tld": "co.uk",
+        "slow": False
     }
 }
 
-# --- ASYNC HIGH-FIDELITY TTS ENGINE ---
-async def generate_speech_bytes(text: str, voice_name: str, rate: str, pitch: str) -> bytes:
-    communicate = edge_tts.Communicate(text, voice_name, rate=rate, pitch=pitch)
-    mp3_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            mp3_data += chunk["data"]
-    return mp3_data
-
-def synthesize_voice(clean_text: str, teacher_key: str) -> bytes:
-    cfg = TEACHERS[teacher_key]
+# --- HIGH-SPEED IN-MEMORY TTS ENGINE ---
+@st.cache_data(show_spinner=False, max_entries=100)
+def get_speech_audio_b64(text: str, tld: str, slow: bool) -> str:
     try:
-        # Generate distinct neural voice
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        audio_bytes = loop.run_until_complete(generate_speech_bytes(clean_text, cfg["voice"], cfg["rate"], cfg["pitch"]))
-        loop.close()
-        if audio_bytes:
-            return audio_bytes
-    except Exception:
-        pass
-    
-    # Fallback to gTTS if network is restricted
-    try:
-        tts = gTTS(text=clean_text, lang='hi', slow=(teacher_key.startswith("Male")))
+        tts = gTTS(text=text, lang='hi', tld=tld, slow=slow)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
-        return fp.getvalue()
+        fp.seek(0)
+        return base64.b64encode(fp.read()).decode()
     except Exception:
-        return b""
+        return ""
 
-# Helper: Extract the ENTIRE Sanskrit speech block completely
 def extract_complete_sanskrit_speech(reply_content: str) -> str:
     if "[संस्कृतम्]:" in reply_content:
         part = reply_content.split("[संस्कृतम्]:")[1]
@@ -314,47 +280,104 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     if not clean_text:
         return
     cfg = TEACHERS[teacher_key]
-    try:
-        raw_audio = synthesize_voice(clean_text, teacher_key)
-        if not raw_audio:
-            return
-        audio_b64 = base64.b64encode(raw_audio).decode()
+    audio_b64 = get_speech_audio_b64(clean_text, cfg["tld"], cfg["slow"])
+    if not audio_b64:
+        return
         
-        elem_id = f"audio_{int(time.time()*1000)}"
-        st.markdown(f"""
-        <div style="display:flex; align-items:center; gap:16px; margin: 12px 0; background:rgba(255,255,255,0.03); padding:12px; border-radius:14px; border:1px solid rgba(255,143,0,0.2);">
-            <div class="avatar-wrapper" id="wrap_{elem_id}">
-                <img src="{cfg['img']}" class="avatar-base"/>
-                <div class="talking-lip"></div>
-            </div>
-            <div style="flex-grow:1;">
-                <div class="status-badge">🟢 AI Voice Speaking ({cfg['title'].split('(')[0].strip()})</div>
-                <div style="font-weight:700; color:#FF8F00; font-size:1.05rem;">{cfg['title']}</div>
-                <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:36px; margin-top:6px;">
-                    <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
-                </audio>
-            </div>
+    elem_id = f"aud_{abs(hash(clean_text)) % 1000000}"
+    st.markdown(f"""
+    <div style="display:flex; align-items:center; gap:16px; margin: 10px 0; background:rgba(255,255,255,0.03); padding:12px; border-radius:14px; border:1px solid rgba(255,143,0,0.2);">
+        <div class="avatar-wrapper" id="wrap_{elem_id}">
+            <img src="{cfg['img']}" class="avatar-base"/>
+            <div class="talking-lip"></div>
         </div>
-        <script>
-            (function(){{
-                var aud = document.getElementById("{elem_id}");
-                var wrp = document.getElementById("wrap_{elem_id}");
-                if(aud && wrp){{
-                    aud.onplay = function(){{ wrp.classList.add("is-speaking"); }};
-                    aud.onpause = function(){{ wrp.classList.remove("is-speaking"); }};
-                    aud.onended = function(){{ wrp.classList.remove("is-speaking"); }};
-                }}
-            }})();
-        </script>
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
+        <div style="flex-grow:1;">
+            <div class="status-badge">🟢 AI Tutor Speaking ({cfg['title'].split('(')[0].strip()})</div>
+            <div style="font-weight:700; color:#FF8F00; font-size:1.02rem;">{cfg['title']}</div>
+            <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:36px; margin-top:5px;">
+                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+            </audio>
+        </div>
+    </div>
+    <script>
+        (function(){{
+            var aud = document.getElementById("{elem_id}");
+            var wrp = document.getElementById("wrap_{elem_id}");
+            if(aud && wrp){{
+                aud.onplay = function(){{ wrp.classList.add("is-speaking"); }};
+                aud.onpause = function(){{ wrp.classList.remove("is-speaking"); }};
+                aud.onended = function(){{ wrp.classList.remove("is-speaking"); }};
+            }}
+        }})();
+    </script>
+    """, unsafe_allow_html=True)
 
-# --- APP HERO ---
+# --- CLIENT-SIDE LIVE SPEECH-TO-TEXT COMPONENT (AUTO-TYPE) ---
+def render_live_speech_recognizer():
+    components.html("""
+    <div style="font-family:sans-serif; text-align:center; padding:8px; border-radius:10px; background:rgba(255,111,0,0.06); border:1px dashed #FF8F00;">
+        <div style="font-size:0.88rem; color:#FF8F00; font-weight:700; margin-bottom:6px;">🎙️ Live Speech-to-Text (Auto-Type in any language)</div>
+        <button id="micBtn" onclick="toggleDictation()" style="background:#E65100; color:white; border:none; padding:8px 18px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+            🎙️ Start Speaking
+        </button>
+        <div id="statusText" style="font-size:0.8rem; color:#888; margin-top:5px;">Click to speak (English, Hindi, Sanskrit, Telugu)</div>
+    </div>
+    <script>
+        var recognition;
+        var recognizing = false;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'hi-IN'; // Works for Sanskrit, Hindi, and general Indic speech
+            
+            recognition.onstart = function() {
+                recognizing = true;
+                document.getElementById('micBtn').style.background = '#2E7D32';
+                document.getElementById('micBtn').innerText = '🔴 Listening... (Speak now)';
+                document.getElementById('statusText').innerText = 'Listening to your voice...';
+            };
+            recognition.onresult = function(event) {
+                var transcript = event.results[0][0].transcript;
+                document.getElementById('statusText').innerText = 'Recognized: ' + transcript;
+                
+                // Copy into Streamlit chat input or clipboard
+                navigator.clipboard.writeText(transcript);
+                var inputs = window.parent.document.querySelectorAll('textarea, input[type=text]');
+                if(inputs.length > 0) {
+                    var lastInput = inputs[inputs.length - 1];
+                    lastInput.value = transcript;
+                    lastInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            };
+            recognition.onerror = function() {
+                recognizing = false;
+                document.getElementById('micBtn').style.background = '#E65100';
+                document.getElementById('micBtn').innerText = '🎙️ Start Speaking';
+                document.getElementById('statusText').innerText = 'Speech error. Please try again.';
+            };
+            recognition.onend = function() {
+                recognizing = false;
+                document.getElementById('micBtn').style.background = '#E65100';
+                document.getElementById('micBtn').innerText = '🎙️ Start Speaking';
+            };
+        } else {
+            document.getElementById('statusText').innerText = 'Use Chrome/Edge/Safari for live speech typing.';
+        }
+        function toggleDictation() {
+            if (recognition) {
+                if (recognizing) { recognition.stop(); } else { recognition.start(); }
+            }
+        }
+    </script>
+    """, height=95)
+
+# --- HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Pro (सम्भाषण-प्रशिक्षकः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.9;">Complete Neural Voice Engine • Distinct Male/Female/Child Personas • Continuous Loop</p>
+    <p style="margin:4px 0 0 0; opacity:0.9;">High-Speed Spoken Sanskrit AI • Live Auto-Type • Inline Remarks & Feedback</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -362,7 +385,7 @@ st.markdown("""
 u_name, u_lvl, u_strk, u_xp = get_user()
 
 with st.sidebar:
-    st.markdown("### 🎙️ **Teacher & Neural Voice**")
+    st.markdown("### 🎙️ **Teacher & Voice Selection**")
     selected_teacher = st.selectbox("Active Guide:", list(TEACHERS.keys()), index=0)
     t_info = TEACHERS[selected_teacher]
     
@@ -371,7 +394,7 @@ with st.sidebar:
         <img src="{t_info['img']}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #FF8F00; margin-bottom:6px;"/>
         <div style="font-weight:700; color:#FF8F00;">{t_info['title']}</div>
         <div style="font-size:0.75rem; opacity:0.8;">{t_info['desc']}</div>
-        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Voice: {t_info['voice']}</div>
+        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Image: {t_info['status']}</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -390,14 +413,14 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.markdown("### 🏆 **Student Database Profile**")
+    st.markdown("### 🏆 **Student Profile**")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         st.metric("🔥 Day Streak", f"{u_strk} Days")
     with col_p2:
         st.metric("⭐ Saved XP", f"{u_xp} XP")
     
-    if st.button("🔄 Start New Conversation", use_container_width=True):
+    if st.button("🔄 Reset Chat History", use_container_width=True):
         st.session_state.chat_history = []
         st.session_state.turn_count = 0
         st.rerun()
@@ -407,40 +430,36 @@ if "chat_history" not in st.session_state:
 if "turn_count" not in st.session_state:
     st.session_state.turn_count = 0
 
-FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', an interactive conversational Sanskrit tutor speaking with the student.
-Student Tier: {target_tier}.
+FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', a fast interactive spoken Sanskrit tutor.
+Student Level: {target_tier}.
 
-CRITICAL RULES:
-1. Speak in pure, clear spoken Sarala Samskritam.
-2. Keep the response to 2-4 complete sentences.
-3. Conclude with a question to prompt the student to speak next.
-
-MANDATORY FORMAT:
-[संस्कृतम्]: <Complete spoken Sanskrit sentences>
-[IAST]: <Romanized transliteration>
-[English]: <English meaning>
-[✨ Say It Better]: <One short idiomatic Sanskrit upgrade>
-[मार्गदर्शनम्] (Only if student made an error):
-- 💡 Correction & rule
+CRITICAL: Keep your response short, lively, and within 2-3 spoken sentences in Sarala Samskritam. Always finish with a quick question to keep dialogue going.
+Format ALWAYS:
+[संस्कृतम्]: <Short Sanskrit dialogue>
+[IAST]: <Transliteration>
+[English]: <Meaning>
+[✨ Say It Better]: <One short idiomatic upgrade>
+[मार्गदर्शनम्] (Only if error made):
+- 💡 Hint & rule
 """
 
-tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans, tab_feedback = st.tabs([
-    "💬 1. Continuous Oral Roleplay",
-    "🎙️ 2. Śikṣā Coach",
+# --- 5 FOCUSED TABS (No redundant remarks tab) ---
+tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
+    "💬 1. Fast Oral Roleplay",
+    "🎙️ 2. Śikṣā Phonetics",
     "🕉️ 3. Svara & Chandaḥ",
     "🧠 4. SRS Vault",
-    "🌐 5. Translator",
-    "📝 6. Remarks Log (अभिप्रायः)"
+    "🌐 5. Universal Translator"
 ])
 
 # =========================================================
-# TAB 1: CONTINUOUS ORAL ROLEPLAY
+# TAB 1: FAST ORAL ROLEPLAY + INLINE REMARKS
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Live Conversation with AI Tutor (सजीव-सम्भाषणम्)")
     
     scenario = st.selectbox(
-        "Select Scenario / प्रसङ्गः:",
+        "Conversation Scenario / प्रसङ्गः:",
         [
             "At Gurukula / Classroom (पाठशाला - शिष्टाचारः)",
             "At the Market (विपणिः - शाकक्रयणम् / Purchasing Vegetables)",
@@ -450,44 +469,43 @@ with tab_roleplay:
         ]
     )
     
-    # 1. Display Chat History with Complete Talking Avatar Audio
+    # 1. Render Messages with Complete Speech & Direct Inline Remarks Form
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
             if role == "assistant":
-                full_sanskrit = extract_complete_sanskrit_speech(msg["content"])
-                if full_sanskrit:
-                    render_talking_avatar(full_sanskrit, selected_teacher, auto_play=False)
+                full_s = extract_complete_sanskrit_speech(msg["content"])
+                if full_s:
+                    render_talking_avatar(full_s, selected_teacher, auto_play=False)
                 
-                # Remarks Widget
-                with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
-                    fb_type = st.selectbox(
-                        "Remark Type:",
-                        [
-                            "✅ Correct & Auspicious (उत्कृष्टम्)",
-                            "⚠️ Grammar / Sūtra Error (व्याकरण-दोषः)",
-                            "⚠️ Inaccurate Translation (अनुवाद-दोषः)",
-                            "⚠️ Sandhi / Spelling Mistake (सन्धि/वर्ण-दोषः)",
-                            "💡 Suggestion for Improvement (सुझावः)"
-                        ],
-                        key=f"fb_type_{idx}"
-                    )
-                    user_remark = st.text_area("Your Note / Correction:", key=f"remark_{idx}", placeholder="e.g. In sentence 1, 'गच्छामि' is better...")
-                    if st.button("💾 Save Remark", key=f"btn_fb_{idx}"):
-                        prior_user_msg = st.session_state.chat_history[idx - 1]["content"] if idx > 0 else "N/A"
-                        save_feedback(selected_teacher, prior_user_msg, msg["content"], fb_type, user_remark)
-                        st.success("✅ Remark saved into SQLite database! (View in Tab 6)")
+                # --- INLINE REMARK & FEEDBACK FORM ---
+                with st.expander("💬 Add Remark / Report Mistake on this Response"):
+                    with st.form(key=f"remark_form_{idx}"):
+                        fb_type = st.selectbox(
+                            "Classification:",
+                            [
+                                "⚠️ Grammar / Sūtra Error (व्याकरण-दोषः)",
+                                "⚠️ Inaccurate Translation (अनुवाद-दोषः)",
+                                "⚠️ Sandhi / Spelling Mistake (सन्धि/वर्ण-दोषः)",
+                                "💡 Suggestion / Better Word (सुझावः)",
+                                "✅ Auspicious & Correct (उत्कृष्टम्)"
+                            ],
+                            key=f"fb_sel_{idx}"
+                        )
+                        fb_text = st.text_area("Write your remarks / correction:", key=f"fb_txt_{idx}", placeholder="e.g. In line 1, please use 'गच्छामि'...")
+                        submitted = st.form_submit_button("💾 Save Remark (पञ्जीकरणम्)")
+                        if submitted:
+                            prior_user = st.session_state.chat_history[idx - 1]["content"] if idx > 0 else "N/A"
+                            save_feedback(selected_teacher, prior_user, msg["content"], fb_type, fb_text)
+                            st.success("✅ Remark saved successfully into the database!")
 
-    # 2. CONTINUOUS MICROPHONE PROMPTER
-    st.markdown("""
-    <div class="voice-prompt-box">
-        <h4 style="margin:0; color:#FF8F00;">🎙️ अधुना भवान् वदतु (Your Turn to Speak)</h4>
-        <p style="margin:4px 0 10px 0; opacity:0.85; font-size:0.9rem;">Press record, speak your sentence or question to Acharya, and tap stop.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    user_audio = st.audio_input("Record voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
+    # 2. CLIENT-SIDE LIVE SPEECH-TO-TEXT (AUTO-TYPE)
+    st.write("---")
+    render_live_speech_recognizer()
+
+    # 3. FAST AUDIO RECORDING WIDGET
+    user_audio = st.audio_input("Or Record Voice Question:", key=f"mic_turn_{st.session_state.turn_count}")
 
     # Process Audio Input
     if user_audio is not None:
@@ -498,12 +516,12 @@ with tab_roleplay:
         client = genai.Client(api_key=api_key)
         audio_bytes = user_audio.getvalue()
         
-        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Question Submitted]*"})
+        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Oral Question Submitted]*"})
         with st.chat_message("user"):
             st.audio(user_audio, format="audio/wav")
 
         with st.chat_message("assistant"):
-            with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
+            with st.spinner("आचार्यः चिन्तयति..."):
                 t_start = time.time()
                 try:
                     resp = client.models.generate_content(
@@ -512,10 +530,10 @@ with tab_roleplay:
                             "role": "user",
                             "parts": [
                                 {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen to student speech and reply directly."}
+                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Respond quickly in character."}
                             ]
                         }],
-                        config={"temperature": 0.2, "max_output_tokens": 600}
+                        config={"temperature": 0.2, "max_output_tokens": 400}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
@@ -523,9 +541,9 @@ with tab_roleplay:
                     st.markdown(reply_text)
                     st.caption(f"⚡ *Response Latency: {latency}s*")
                     
-                    full_sanskrit = extract_complete_sanskrit_speech(reply_text)
-                    if full_sanskrit:
-                        render_talking_avatar(full_sanskrit, selected_teacher, auto_play=True)
+                    full_s = extract_complete_sanskrit_speech(reply_text)
+                    if full_s:
+                        render_talking_avatar(full_s, selected_teacher, auto_play=True)
                     
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
                     st.session_state.turn_count += 1
@@ -534,8 +552,8 @@ with tab_roleplay:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    # Text Input as alternative
-    if text_input := st.chat_input("Or type here (e.g. mama nama, katham asti...):"):
+    # Process Text Input (Direct or Auto-Typed)
+    if text_input := st.chat_input("Type here or speak with the microphone above..."):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
             st.stop()
@@ -557,7 +575,7 @@ with tab_roleplay:
                     resp = client.models.generate_content(
                         model=ACTIVE_MODEL,
                         contents=contents,
-                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 600}
+                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 400}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
@@ -565,9 +583,9 @@ with tab_roleplay:
                     st.markdown(reply_text)
                     st.caption(f"⚡ *Response Latency: {latency}s*")
                     
-                    full_sanskrit = extract_complete_sanskrit_speech(reply_text)
-                    if full_sanskrit:
-                        render_talking_avatar(full_sanskrit, selected_teacher, auto_play=True)
+                    full_s = extract_complete_sanskrit_speech(reply_text)
+                    if full_s:
+                        render_talking_avatar(full_s, selected_teacher, auto_play=True)
                         
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
                     st.session_state.turn_count += 1
@@ -577,7 +595,7 @@ with tab_roleplay:
                     st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 2: ŚIKṢĀ PHONETIC COACH
+# TAB 2: ŚIKṢĀ PHONETICS
 # =========================================================
 with tab_shiksha:
     st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Accent Coach)")
@@ -613,7 +631,8 @@ with tab_shiksha:
                             {"inline_data": {"mime_type": "audio/wav", "data": rec_sh.getvalue()}},
                             {"text": f"Evaluate student pronunciation against target: '{phrase}'. Return: 1. Score out of 100, 2. Articulation points (Dental vs Retroflex), 3. Mahaprana breath release, 4. Vowel duration (Hrasva/Dirgha), 5. Tongue placement tip."}
                         ]
-                    }]
+                    }],
+                    config={"max_output_tokens": 400}
                 )
                 st.markdown(resp.text)
                 update_xp(15)
@@ -640,7 +659,8 @@ with tab_chandas:
             try:
                 resp = client.models.generate_content(
                     model=ACTIVE_MODEL,
-                    contents=[{"role": "user", "parts": [{"text": f"Perform Pingala Chandaḥ scansion on: '{verse}'. Identify metre name (Anuṣṭubh, Triṣṭubh, etc.), Laghu (।) / Guru (ऽ) syllabic mapping, Gana breakdown, and Vedic Svara rules."}]}]
+                    contents=[{"role": "user", "parts": [{"text": f"Perform Pingala Chandaḥ scansion on: '{verse}'. Identify metre name (Anuṣṭubh, Triṣṭubh, etc.), Laghu (।) / Guru (ऽ) syllabic mapping, Gana breakdown, and Vedic Svara rules."}]}],
+                    config={"max_output_tokens": 500}
                 )
                 st.markdown(resp.text)
                 update_xp(20)
@@ -694,7 +714,7 @@ with tab_trans:
                 resp = client.models.generate_content(
                     model=ACTIVE_MODEL,
                     contents=[{"role": "user", "parts": [{"text": f"{prompt}\nInput: {t_in}"}]}],
-                    config={"temperature": 0.2}
+                    config={"temperature": 0.2, "max_output_tokens": 400}
                 )
                 st.markdown(resp.text)
                 if "संस्कृतम्" in resp.text:
@@ -703,20 +723,3 @@ with tab_trans:
                         render_talking_avatar(full_s, selected_teacher, auto_play=False)
             except Exception as e:
                 st.error(f"Error: {str(e)}")
-
-# =========================================================
-# TAB 6: REMARKS & FEEDBACK LOG ARCHIVE
-# =========================================================
-with tab_feedback:
-    st.markdown("#### 📝 अभिप्राय-पञ्जिका (Teacher & Student Remarks Archive)")
-    st.caption("All reported errors, corrections, and notes are permanently stored here in the database.")
-    
-    logs = get_all_feedbacks()
-    if not logs:
-        st.info("No remarks recorded yet. You can submit remarks directly under any Acharya response in Tab 1.")
-    else:
-        for f_id, f_time, f_teacher, f_type, f_rem, f_resp in logs:
-            with st.expander(f"📌 [{f_time}] {f_type} — {f_teacher}"):
-                st.markdown(f"**Remark / Note:**\n{f_rem if f_rem else '*(No written note provided)*'}")
-                st.markdown("---")
-                st.markdown(f"**Acharya Response Inspected:**\n```\n{f_resp}\n```")
