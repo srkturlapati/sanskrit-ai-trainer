@@ -5,6 +5,7 @@ import io
 import sqlite3
 import datetime
 import base64
+import json
 from pypdf import PdfReader
 
 # Enforce UTF-8 encoding
@@ -19,6 +20,7 @@ from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -213,13 +215,13 @@ st.markdown("""
         margin-bottom: 6px;
     }
     
-    .upload-card {
-        background: rgba(255, 111, 0, 0.05);
+    .recorder-container {
+        background: rgba(255, 111, 0, 0.06);
         border: 2px dashed #FF8F00;
         border-radius: 14px;
-        padding: 18px;
+        padding: 16px;
         text-align: center;
-        margin-bottom: 15px;
+        margin: 15px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -329,11 +331,93 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     </script>
     """, unsafe_allow_html=True)
 
-# --- HERO ---
+# --- CONTINUOUS HTML5 HARDWARE RECORDER (UNLIMITED TIME / NO SILENCE CUTOFF) ---
+def render_continuous_voice_recorder():
+    components.html("""
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; text-align:center; padding:12px; border-radius:12px; background:rgba(255,111,0,0.06); border:2px dashed #FF8F00;">
+        <h4 style="margin:0 0 6px 0; color:#FF8F00;">🎙️ Continuous Sanskrit Voice Recorder</h4>
+        <p style="margin:0 0 10px 0; font-size:0.85rem; color:#DDD;">Records continuously without cutting off on pauses. Speak for 30s, 1min, or 2mins+ freely.</p>
+        
+        <div style="display:flex; justify-content:center; align-items:center; gap:12px;">
+            <button id="btnStart" onclick="startHardwareRecording()" style="background:#E65100; color:white; border:none; padding:9px 22px; border-radius:24px; font-weight:700; font-size:0.92rem; cursor:pointer;">
+                🔴 Start Speaking (वदतु)
+            </button>
+            <button id="btnStop" onclick="stopHardwareRecording()" style="background:#2E7D32; color:white; border:none; padding:9px 22px; border-radius:24px; font-weight:700; font-size:0.92rem; cursor:pointer; display:none;">
+                ⏹️ Stop & Send to Acharya
+            </button>
+        </div>
+        
+        <div id="recordTimer" style="margin-top:8px; font-weight:700; font-size:0.9rem; color:#81C784;"></div>
+    </div>
+
+    <script>
+        var mediaRecorder = null;
+        var audioChunks = [];
+        var timerInterval = null;
+        var secondsElapsed = 0;
+
+        async function startHardwareRecording() {
+            try {
+                var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        audioChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async function() {
+                    var audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    var reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = function() {
+                        var base64data = reader.result.split(',')[1];
+                        // Dispatch custom event to Streamlit session
+                        window.parent.postMessage({
+                            type: 'sanskrit_audio_payload',
+                            data: base64data
+                        }, '*');
+                    };
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start(250); // Collect slices every 250ms
+                document.getElementById('btnStart').style.display = 'none';
+                document.getElementById('btnStop').style.display = 'inline-block';
+                
+                secondsElapsed = 0;
+                document.getElementById('recordTimer').innerText = "🔴 Recording: 00:00 (Will not cut off on pauses)";
+                timerInterval = setInterval(function() {
+                    secondsElapsed++;
+                    var mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+                    var secs = String(secondsElapsed % 60).padStart(2, '0');
+                    document.getElementById('recordTimer').innerText = "🔴 Recording: " + mins + ":" + secs + " (Speaking...)";
+                }, 1000);
+
+            } catch (err) {
+                alert("Microphone permission denied or not supported: " + err.message);
+            }
+        }
+
+        function stopHardwareRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                clearInterval(timerInterval);
+                document.getElementById('recordTimer').innerText = "⏳ Processing voice with Acharya...";
+                document.getElementById('btnStart').style.display = 'inline-block';
+                document.getElementById('btnStop').style.display = 'none';
+            }
+        }
+    </script>
+    """, height=135)
+
+# --- APP HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Pro (सम्भाषण-प्रशिक्षकः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.9;">High-Accuracy Multimodal Voice • Bulk PDF Vocabulary Ingestion • Inline Remarks</p>
+    <p style="margin:4px 0 0 0; opacity:0.9;">Continuous Sanskrit Microphone • Bulk PDF Vocabulary Ingestion • Inline Remarks for Every Response</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -404,9 +488,9 @@ Format MANDATORY:
 - 💡 Correction & grammatical rule
 """
 
-# --- 5 FOCUSED TABS ---
+# --- 5 MASTER TABS ---
 tab_roleplay, tab_bulk_vocab, tab_shiksha, tab_chandas, tab_trans = st.tabs([
-    "💬 1. High-Accuracy Oral Roleplay",
+    "💬 1. Continuous Oral Roleplay",
     "📚 2. Bulk PDF Vocabulary Extractor",
     "🎙️ 3. Śikṣā Phonetics",
     "🕉️ 4. Svara & Chandaḥ",
@@ -414,7 +498,7 @@ tab_roleplay, tab_bulk_vocab, tab_shiksha, tab_chandas, tab_trans = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: HIGH-ACCURACY MULTIMODAL ORAL ROLEPLAY
+# TAB 1: CONTINUOUS ORAL ROLEPLAY + REMARKS ON EVERY TURN
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Live Conversational Roleplay with AI Tutor")
@@ -461,10 +545,11 @@ with tab_roleplay:
                             save_feedback(selected_teacher, prior_user, msg["content"], fb_type, fb_text)
                             st.success("✅ Remark saved successfully into the database!")
 
-    # 2. ACCURATE MULTIMODAL SANSKRIT MICROPHONE (Native Phoneme Audio Engine)
-    st.markdown("##### 🎙️ **Speak into Microphone (वदतु):**")
-    st.caption("Native multimodal acoustic processing accurately captures authentic Sanskrit pronunciation and conjuncts.")
-    user_audio = st.audio_input("Record voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
+    # 2. CONTINUOUS HARDWARE RECORDER COMPONENT (NO CUTOFFS)
+    render_continuous_voice_recorder()
+
+    # 3. DIRECT EXTENDED MICROPHONE RECORDER (Backup Streamlit Native)
+    user_audio = st.audio_input("Or Record Voice directly:", key=f"mic_turn_{st.session_state.turn_count}")
 
     if user_audio is not None:
         if not api_key:
@@ -510,7 +595,7 @@ with tab_roleplay:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    # 3. TEXT CHAT INPUT (With automatic ITRANS to Devanagari transliteration)
+    # 4. TEXT CHAT INPUT (With automatic ITRANS to Devanagari transliteration)
     if text_input := st.chat_input("Type in Sanskrit, English, or Telugu (e.g. mama nama, katham asti)..."):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
@@ -563,9 +648,9 @@ with tab_bulk_vocab:
     
     with col_pdf1:
         st.markdown("""
-        <div class="upload-card">
+        <div style="background:rgba(255,111,0,0.05); border:2px dashed #FF8F00; border-radius:14px; padding:18px; text-align:center; margin-bottom:15px;">
             <h4 style="margin:0; color:#FF8F00;">📄 Upload Sanskrit PDF</h4>
-            <p style="font-size:0.85rem; opacity:0.85; margin:4px 0 10px 0;">Extracts up to 50 unique vocabulary words per batch directly into your persistent SQLite Vault.</p>
+            <p style="font-size:0.85rem; opacity:0.85; margin:4px 0 10px 0;">Extracts unique vocabulary words per batch directly into your persistent SQLite Vault.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -581,21 +666,19 @@ with tab_bulk_vocab:
                 try:
                     pdf_reader = PdfReader(uploaded_pdf)
                     extracted_text = ""
-                    # Read up to first 10 pages for processing
                     for page_idx in range(min(10, len(pdf_reader.pages))):
                         text = pdf_reader.pages[page_idx].extract_text()
                         if text:
                             extracted_text += text + "\n"
                     
                     if not extracted_text.strip():
-                        st.error("No readable text found in PDF (might be a scanned image). Please use a text PDF.")
+                        st.error("No readable text found in PDF (might be a scanned image).")
                         st.stop()
                     
-                    # Prompt Gemini to extract structured JSON vocabulary
                     client = genai.Client(api_key=api_key)
                     PROMPT_BULK = f"""Extract {max_words} most important unique Sanskrit vocabulary words from this text.
 Return STRICT valid JSON array of objects with keys: "word", "meaning", "dhatu", "level".
-Example format:
+Example:
 [
   {{"word": "गच्छति", "meaning": "goes", "dhatu": "गम्", "level": "Beginner"}},
   {{"word": "विद्यार्थी", "meaning": "student", "dhatu": "विद्या + अर्थिन्", "level": "Beginner"}}
@@ -610,7 +693,6 @@ Text:
                         config={"temperature": 0.1, "response_mime_type": "application/json"}
                     )
                     
-                    import json
                     parsed_vocab = json.loads(resp.text)
                     added = save_bulk_words(parsed_vocab)
                     st.success(f"🎉 Successfully extracted and saved {added} new Sanskrit words into your Database Vault! (+{added * 5} XP)")
@@ -634,7 +716,6 @@ Text:
         v_list = get_vault()
         st.caption(f"Total Words in Vault: **{len(v_list)}**")
         
-        # Search / Filter words
         search_query = st.text_input("🔍 Search Vault:", placeholder="Type word or root...")
         filtered = [x for x in v_list if search_query.lower() in x['word'].lower() or search_query.lower() in x['meaning'].lower()] if search_query else v_list
         
