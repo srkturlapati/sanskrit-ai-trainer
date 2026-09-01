@@ -7,7 +7,6 @@ import datetime
 import base64
 import json
 import re
-import random
 from pypdf import PdfReader
 
 # Enforce UTF-8 encoding across runtime environments
@@ -115,7 +114,6 @@ def init_db():
             try: c.execute(f"ALTER TABLE vocab_vault ADD COLUMN {col_name} {col_type}")
             except Exception: pass
 
-    # Seed Default User
     today_str = str(datetime.date.today())
     c.execute('SELECT COUNT(*) FROM user_profile')
     if c.fetchone()[0] == 0:
@@ -149,7 +147,7 @@ def update_user_xp(uid, xp_add=10):
     conn.commit()
     conn.close()
 
-# --- AUDIO GENERATION & AVATAR ENGINE ---
+# --- AUDIO GENERATION ENGINE ---
 @st.cache_data(show_spinner=False, max_entries=200)
 def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> str:
     try:
@@ -164,11 +162,11 @@ def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> s
 
 def render_autotype_mic(target_input_hint=""):
     components.html(f"""
-    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:10px; background:rgba(255,111,0,0.06); padding:8px 14px; border-radius:10px; border:1px dashed #FF8F00; margin: 6px 0;">
-        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:#E65100; color:white; border:none; padding:6px 16px; border-radius:18px; font-weight:bold; cursor:pointer; font-size:0.8rem;">
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, #2D1400 0%, #170A00 100%); padding:10px 16px; border-radius:12px; border:1.5px solid #FF8F00; margin: 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:#E65100; color:white; border:none; padding:7px 18px; border-radius:20px; font-weight:700; cursor:pointer; font-size:0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
             🎙️ Auto-Type Voice
         </button>
-        <span id="autoTypeStatus" style="font-size:0.8rem; color:#AAA;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
+        <span id="autoTypeStatus" style="font-size:0.82rem; color:#FFD54F; font-weight:500;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
     </div>
     <script>
         var recognition = null;
@@ -184,11 +182,11 @@ def render_autotype_mic(target_input_hint=""):
                 isRec = true;
                 document.getElementById('autoTypeBtn').style.background = '#2E7D32';
                 document.getElementById('autoTypeBtn').innerText = '🔴 Listening...';
-                document.getElementById('autoTypeStatus').innerText = 'Transcribing your voice live...';
+                document.getElementById('autoTypeStatus').innerText = 'Transcribing your voice live into the text box...';
             }};
             recognition.onresult = function(e) {{
                 var spoken = e.results[0][0].transcript;
-                document.getElementById('autoTypeStatus').innerText = 'Recognized: ' + spoken;
+                document.getElementById('autoTypeStatus').innerText = 'Transcribed: ' + spoken;
                 var inputs = window.parent.document.querySelectorAll('textarea, input[type=text]');
                 if(inputs.length > 0) {{
                     var target = inputs[inputs.length - 1];
@@ -208,38 +206,108 @@ def render_autotype_mic(target_input_hint=""):
             }}
         }}
     </script>
-    """, height=50)
+    """, height=58)
 
-# --- CSS STYLES (HIGH-CONTRAST HIGHLIGHTING) ---
+# --- COMPLETE GLOBAL CSS REDESIGN ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     
+    /* Hero Header */
     .hero-banner {
         background: linear-gradient(135deg, #BF360C 0%, #E65100 50%, #1A0A00 100%);
         border-radius: 16px;
-        padding: 16px 22px;
+        padding: 18px 24px;
         color: #FFFFFF;
-        box-shadow: 0 6px 22px rgba(230, 81, 0, 0.3);
-        margin-bottom: 15px;
+        box-shadow: 0 8px 24px rgba(230, 81, 0, 0.35);
+        margin-bottom: 18px;
+        border: 1px solid rgba(255, 143, 0, 0.4);
     }
+    
+    /* General Game Cards */
     .game-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 143, 0, 0.25);
+        background: #140A02 !important;
+        border: 1.5px solid #FF8F00 !important;
         border-radius: 14px;
-        padding: 18px;
-        margin-bottom: 12px;
+        padding: 20px;
+        margin-bottom: 14px;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     }
-    /* HIGH-CONTRAST SOLID ANSWER & EXPLANATION BOX */
+
+    /* Structured Response Cards (Tab 1 Roleplay) */
+    .roleplay-card {
+        background: #120A03 !important;
+        border: 1.5px solid #FF8F00 !important;
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin: 12px 0;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+    .roleplay-sanskrit {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #FFE082 !important;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    .roleplay-iast {
+        font-size: 0.95rem;
+        color: #80D8FF !important;
+        margin-bottom: 8px;
+        font-style: italic;
+    }
+    .roleplay-english {
+        font-size: 1rem;
+        color: #A5D6A7 !important;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+    .roleplay-tip {
+        background: rgba(255, 255, 255, 0.06);
+        border-left: 4px solid #CE93D8;
+        padding: 8px 14px;
+        border-radius: 0 8px 8px 0;
+        font-size: 0.88rem;
+        color: #F3E5F5 !important;
+    }
+
+    /* Translation Dissection Cards (Tab 2) */
+    .trans-card {
+        background: #0A140E !important;
+        border: 1.5px solid #2E7D32 !important;
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-bottom: 14px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+    .trans-sanskrit {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #FFE082 !important;
+        margin: 6px 0;
+    }
+    .trans-pada {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px dashed #81C784;
+        padding: 8px 14px;
+        border-radius: 8px;
+        color: #C8E6C9 !important;
+        font-size: 0.92rem;
+        margin-top: 8px;
+    }
+
+    /* High-Contrast Solid Answer & Explanation Box */
     .answer-box {
         background: #081C10 !important;
         border: 2px solid #2E7D32 !important;
         border-radius: 12px;
-        padding: 16px 20px;
+        padding: 18px 22px;
         margin-top: 14px;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     }
     .answer-header {
         color: #81C784 !important;
@@ -251,7 +319,7 @@ st.markdown("""
         background: #FFD54F !important;
         color: #000000 !important;
         font-weight: 800 !important;
-        padding: 2px 10px;
+        padding: 3px 10px;
         border-radius: 6px;
         display: inline-block;
         font-size: 1rem;
@@ -266,15 +334,51 @@ st.markdown("""
         line-height: 1.6;
         color: #FFFFFF !important;
     }
+
+    /* Mottos & Badges */
     .motto-badge {
-        background: linear-gradient(145deg, #3E2723, #1A0C00);
-        border-left: 4px solid #FF8F00;
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin-bottom: 10px;
+        background: linear-gradient(145deg, #2D1400, #140800);
+        border-left: 5px solid #FF8F00;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        border: 1px solid rgba(255, 143, 0, 0.25);
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Helper function to parse roleplay reply into high-contrast card
+def render_highlighted_roleplay_card(content_text):
+    sanskrit = ""
+    iast = ""
+    english = ""
+    tip = ""
+    
+    if "[संस्कृतम्]:" in content_text:
+        try:
+            sanskrit = content_text.split("[संस्कृतम्]:")[1].split("[IAST]:")[0].strip()
+            if "[IAST]:" in content_text:
+                iast = content_text.split("[IAST]:")[1].split("[English]:")[0].strip()
+            if "[English]:" in content_text:
+                english = content_text.split("[English]:")[1].split("[✨ Say It Better]:")[0].strip()
+            if "[✨ Say It Better]:" in content_text:
+                tip = content_text.split("[✨ Say It Better]:")[1].strip()
+        except Exception:
+            sanskrit = content_text
+    else:
+        sanskrit = content_text
+
+    st.markdown(f"""
+    <div class="roleplay-card">
+        <div style="font-size:0.8rem; font-weight:800; color:#FF8F00; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">
+            🚩 संस्कृत-सम्भाषणम् (Spoken Sanskrit)
+        </div>
+        <div class="roleplay-sanskrit">{sanskrit}</div>
+        {f'<div class="roleplay-iast"><b>IAST:</b> {iast}</div>' if iast else ''}
+        {f'<div class="roleplay-english"><b>अर्थः (Meaning):</b> {english}</div>' if english else ''}
+        {f'<div class="roleplay-tip">💡 <b>Say It Better / सुभाषितम्:</b> {tip}</div>' if tip else ''}
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- SIDEBAR: GURU PROFILE & XP TRACKER ---
 u_streak, u_xp, u_level, u_name = get_user_stats(st.session_state.user_session_id)
@@ -318,11 +422,11 @@ with st.sidebar:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- APP HERO ---
+# --- APP HERO BANNER ---
 st.markdown("""
 <div class="hero-banner">
     <h2 style="margin:0; font-weight:800;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • High-Contrast Explanations • Amarakośa • Rūpa Matrix • Chandaḥ</p>
+    <p style="margin:4px 0 0 0; opacity:0.95; font-size:0.95rem;">Interactive Sanskrit Pedagogy • High-Contrast Explanations • Amarakośa • Rūpa Arena • Chandaḥ</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -332,13 +436,13 @@ tab_roleplay, tab_trans, tab_amara, tab_rupa, tab_chandas, tab_motto, tab_samskr
     "🌐 2. Anuvāda-Setu (Translator)",
     "📖 3. Amarakośa-Vyūha (Thesaurus)",
     "🏛️ 4. Rūpa-Sādhana (Grammar Arena)",
-    "🕉️ 5. Chandaḥ & Śikṣā (Phonetics)",
+    "🕉️ 5. Chandaḥ Engine (Metre)",
     "🚩 6. Saṃsthā-Dhyeya (Mottos)",
     "🛕 7. Saṃskṛti-Jñāna (Vedas & Festivals)"
 ])
 
 # =========================================================
-# TAB 1: SAMBHĀṢAṆA (ROLEPLAY CONVERSATION)
+# TAB 1: SAMBHĀṢAṆA (HIGH-CONTRAST ROLEPLAY)
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Live Dialogue with AI Guru (सजीव-सम्भाषणम्)")
@@ -355,13 +459,17 @@ with tab_roleplay:
     
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
-        with st.chat_message(role):
-            st.markdown(msg["content"])
-            if role == "assistant" and "[संस्कृतम्]:" in msg["content"]:
-                s_part = msg["content"].split("[संस्कृतम्]:")[1].split("[")[0].strip()
-                aud_b64 = get_speech_audio_b64(s_part, t_info["tld"], t_info["slow"])
-                if aud_b64:
-                    st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
+        if role == "user":
+            with st.chat_message("user"):
+                st.markdown(f"**🗣️ You:** {msg['content']}")
+        else:
+            with st.chat_message("assistant"):
+                render_highlighted_roleplay_card(msg["content"])
+                if "[संस्कृतम्]:" in msg["content"]:
+                    s_part = msg["content"].split("[संस्कृतम्]:")[1].split("[")[0].strip()
+                    aud_b64 = get_speech_audio_b64(s_part, t_info["tld"], t_info["slow"])
+                    if aud_b64:
+                        st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
 
     render_autotype_mic("into the roleplay box below")
     
@@ -376,7 +484,7 @@ with tab_roleplay:
         
         st.session_state.chat_history.append({"role": "user", "content": prompt_formatted})
         with st.chat_message("user"):
-            st.markdown(prompt_formatted)
+            st.markdown(f"**🗣️ You:** {prompt_formatted}")
             
         with st.chat_message("assistant"):
             with st.spinner("गुरुः चिन्तयति..."):
@@ -392,7 +500,7 @@ Format:
                 try:
                     contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.chat_history]
                     reply_text = generate_gemini_content(client, contents, config={"system_instruction": system_prompt, "temperature": 0.2, "max_output_tokens": 450})
-                    st.markdown(reply_text)
+                    render_highlighted_roleplay_card(reply_text)
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
                     update_user_xp(st.session_state.user_session_id, 10)
                     st.rerun()
@@ -400,7 +508,7 @@ Format:
                     st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 2: ANUVĀDA-SETU (TRANSLATOR)
+# TAB 2: ANUVĀDA-SETU (HIGH-CONTRAST TRANSLATOR)
 # =========================================================
 with tab_trans:
     st.markdown("#### 🌐 Multi-Sentence & Paragraph Batch Translator (अनुवाद-सेतुः)")
@@ -434,15 +542,29 @@ Text:
                 update_user_xp(st.session_state.user_session_id, 15)
                 
                 for idx, item in enumerate(results, 1):
-                    with st.expander(f"Sentence #{idx}: {item.get('original', '')[:60]}...", expanded=True):
-                        st.markdown(f"**संस्कृतम्:** ### {item.get('sanskrit')}")
-                        st.markdown(f"**IAST:** *{item.get('iast')}*")
-                        st.markdown(f"**पदच्छेदः (Word Split):** `{item.get('padaccheda')}`")
-                        st.caption(f"💡 व्याकरणम्: {item.get('grammar_note')}")
-                        
-                        aud_b64 = get_speech_audio_b64(item.get('sanskrit', ''))
-                        if aud_b64:
-                            st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
+                    st.markdown(f"""
+                    <div class="trans-card">
+                        <div style="font-size:0.85rem; font-weight:800; color:#81C784; text-transform:uppercase;">
+                            Sentence #{idx}
+                        </div>
+                        <div style="font-size:0.95rem; color:#DDD; margin-top:4px;">
+                            <b>Original:</b> {item.get('original')}
+                        </div>
+                        <div class="trans-sanskrit">
+                            {item.get('sanskrit')}
+                        </div>
+                        <div style="font-size:0.92rem; color:#80D8FF; font-style:italic;">
+                            <b>IAST:</b> {item.get('iast')}
+                        </div>
+                        <div class="trans-pada">
+                            <b>पदच्छेदः एवं व्याकरणम्:</b> {item.get('padaccheda')} • <i>{item.get('grammar_note')}</i>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    aud_b64 = get_speech_audio_b64(item.get('sanskrit', ''))
+                    if aud_b64:
+                        st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
             except Exception as e:
                 st.error(f"Translation Error: {str(e)}")
 
@@ -457,7 +579,7 @@ with tab_amara:
         st.markdown("""
         <div class="game-card">
             <h4 style="color:#FF8F00; margin:0 0 6px 0;">🎯 Match the Classical Synonyms</h4>
-            <p style="font-size:0.88rem; color:#DDD;">Find the matching Amarakośa synonym for each base word.</p>
+            <p style="font-size:0.9rem; color:#DDD;">Find the matching Amarakośa synonym for each base word.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -487,11 +609,10 @@ with tab_amara:
             else:
                 st.warning(f"Score: {score}/4.")
                 
-            # HIGH-CONTRAST ANSWER KEY
             st.markdown(f"""
             <div class="answer-box">
                 <div class="answer-header">🔑 Complete Amarakośa Synonym Key:</div>
-                <ul style="margin:0; padding-left:20px; font-size:0.98rem; line-height:1.9; color:#FFFFFF;">
+                <ul style="margin:0; padding-left:20px; font-size:1rem; line-height:2.0; color:#FFFFFF;">
                     <li><b>अग्निः (Fire):</b> <span class="answer-badge">वैश्वानरः / वह्निः / पावकः</span> {'✅' if is_a1 else '❌'}</li>
                     <li><b>सूर्यः (Sun):</b> <span class="answer-badge">दिनकरः / मार्तण्डः / भानुः</span> {'✅' if is_a2 else '❌'}</li>
                     <li><b>सिंहः (Lion):</b> <span class="answer-badge">मृगेन्द्रः / पञ्चाननः / केसरी</span> {'✅' if is_a3 else '❌'}</li>
@@ -511,7 +632,6 @@ with tab_amara:
             else:
                 st.error("❌ Incorrect choice.")
             
-            # HIGH-CONTRAST ANSWER & EXPLANATION
             st.markdown("""
             <div class="answer-box">
                 <div class="answer-header">🔑 Correct Answer & Detailed Explanation:</div>
@@ -593,7 +713,6 @@ with tab_rupa:
             else:
                 st.warning(f"Score: {total_corr}/6 correct.")
                 
-            # HIGH-CONTRAST MATRIX TABLE
             st.markdown(f"""
             <div class="answer-box">
                 <div class="answer-header">🔑 Complete Śabdarūpa Answer Key (राम - Masculine):</div>
@@ -667,70 +786,39 @@ with tab_rupa:
             """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 5: CHANDAḤ & ŚIKṢĀ (PHONETICS & METRES)
+# TAB 5: CHANDAḤ ENGINE (CLEAN METRE SCANSION - NO WAVE)
 # =========================================================
 with tab_chandas:
-    st.markdown("#### 🕉️ छन्दः-शास्त्रम् एवं पाणिनीय-शिक्षा (Metre & Phonetic Spectrum)")
+    st.markdown("#### 🕉️ छन्दः-शास्त्रम् (Pingala Metre Scansion & Syllable Engine)")
+    st.caption("Analyzes verses for classical Pingala metres (Anuṣṭubh, Triṣṭubh, Indravajrā, etc.) with exact Laghu (।) and Guru (ऽ) breakdowns.")
     
-    st.markdown("##### 🌊 Live Vocal Pitch Spectrum (स्वर-तरङ्गिणी)")
-    components.html("""
-    <div style="font-family:sans-serif; background:#120B02; border:2px solid #FF8F00; border-radius:12px; padding:12px; color:#FFF;">
-        <button id="pBtn" onclick="toggleAud()" style="background:#E65100; color:white; border:none; padding:6px 16px; border-radius:16px; font-weight:bold; cursor:pointer;">
-            🔴 Activate Live Pitch Spectrum
-        </button>
-        <span id="pTxt" style="font-size:0.8rem; margin-left:10px; color:#AAA;">Tap to test your voice against the ideal harmonic.</span>
-        <canvas id="c" width="600" height="90" style="width:100%; height:90px; background:#080401; margin-top:8px; border-radius:8px;"></canvas>
-    </div>
-    <script>
-        var actx=null, an=null, mic=null, on=false, aid=null;
-        async function toggleAud() {
-            var b = document.getElementById("pBtn");
-            if(!on) {
-                try {
-                    actx = new (window.AudioContext || window.webkitAudioContext)();
-                    mic = await navigator.mediaDevices.getUserMedia({audio:true});
-                    var s = actx.createMediaStreamSource(mic);
-                    an = actx.createAnalyser(); an.fftSize = 1024;
-                    s.connect(an); on=true; b.style.background="#2E7D32"; b.innerText="⏹️ Stop Visualizer";
-                    draw();
-                } catch(e){ alert(e.message); }
-            } else {
-                if(mic) mic.getTracks().forEach(t=>t.stop());
-                if(actx) actx.close();
-                cancelAnimationFrame(aid); on=false; b.style.background="#E65100"; b.innerText="🔴 Activate Live Pitch Spectrum";
-            }
-        }
-        function draw() {
-            if(!on) return;
-            aid = requestAnimationFrame(draw);
-            var cv = document.getElementById("c"), cx = cv.getContext("2d");
-            var buf = an.frequencyBinCount, td = new Uint8Array(buf);
-            an.getByteTimeDomainData(td);
-            cx.fillStyle="#080401"; cx.fillRect(0,0,cv.width,cv.height);
-            cx.lineWidth=2; cx.strokeStyle="#81C784"; cx.beginPath();
-            var sw = cv.width*1.0/buf, x=0;
-            for(var i=0;i<buf;i++) {
-                var v = td[i]/128.0, y = v*(cv.height/2);
-                if(i===0) cx.moveTo(x,y); else cx.lineTo(x,y);
-                x += sw;
-            }
-            cx.lineTo(cv.width, cv.height/2); cx.stroke();
-        }
-    </script>
-    """, height=155)
-
-    st.write("---")
-    st.markdown("##### 📜 Pingala Chandaḥ Verse Scansion Engine")
-    v_scan = st.text_area("Enter Sanskrit verse for Laghu (।) & Guru (ऽ) syllabic scansion:", value="वागर्थाविव सम्प्रुक्तौ वागर्थप्रतिपत्तये।\nजगतः पितरौ वन्दे पार्वतीपरमेश्वरौ॥", height=70)
-    if st.button("Scan Metre / छन्दो-विश्लेषणम्"):
+    v_scan = st.text_area(
+        "Enter Sanskrit verse for metrical scansion:",
+        value="वागर्थाविव सम्प्रुक्तौ वागर्थप्रतिपत्तये।\nजगतः पितरौ वन्दे पार्वतीपरमेश्वरौ॥",
+        height=90
+    )
+    
+    if st.button("🚀 Scan Metre & Ganas / छन्दो-विश्लेषणम्", use_container_width=True):
         if not api_key:
-            st.warning("⚠️ Enter Gemini API Key.")
+            st.warning("⚠️ Enter Gemini API Key in the sidebar.")
             st.stop()
         client = genai.Client(api_key=api_key)
         with st.spinner("Scansion in progress..."):
             try:
-                res = generate_gemini_content(client, [{"role": "user", "parts": [{"text": f"Perform Pingala Chandas for: '{v_scan}'. Return: 1. Metre Name, 2. Laghu/Guru mapping, 3. Gana breakdown."}]}])
-                st.markdown(res)
+                res = generate_gemini_content(
+                    client,
+                    [{"role": "user", "parts": [{"text": f"Perform Pingala Chandas scansion on: '{v_scan}'. Return: 1. Metre Name, 2. Laghu (।) and Guru (ऽ) syllabic mapping per pāda, 3. Gana breakdown (e.g. ma-ya-ra-sa), 4. Metric rule definition."}]}]
+                )
+                st.markdown(f"""
+                <div class="trans-card">
+                    <div style="font-size:1.1rem; font-weight:800; color:#81C784; margin-bottom:8px;">
+                        📜 Metrical Scansion Report:
+                    </div>
+                    <div style="font-size:0.95rem; color:#FFFFFF; line-height:1.7;">
+                        {res}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 update_user_xp(st.session_state.user_session_id, 20)
             except Exception as e:
                 st.error(str(e))
