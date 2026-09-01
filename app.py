@@ -17,16 +17,125 @@ from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
 import streamlit as st
 
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Sambhāṣaṇa AI - Spoken Sanskrit Master",
+    page_title="Sambhāṣaṇa AI | सम्भाषणम्",
     page_icon="🚩",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# --- CUSTOM CSS: LUXURY VEDIC SAFFRON & GOLD UI ---
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Yatra+One&display=swap');
+
+    /* Global Typography & Background Elements */
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    /* Header Banner Styling */
+    .header-container {
+        background: linear-gradient(135deg, #FF6F00 0%, #D84315 50%, #4E342E 100%);
+        border-radius: 20px;
+        padding: 24px 30px;
+        color: white;
+        margin-bottom: 24px;
+        box-shadow: 0 10px 25px -5px rgba(216, 67, 21, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    
+    .header-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .header-subtitle {
+        font-size: 0.98rem;
+        opacity: 0.92;
+        margin-top: 6px;
+        font-weight: 400;
+    }
+
+    /* Custom Metric Cards */
+    .metric-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 111, 0, 0.2);
+        border-radius: 14px;
+        padding: 14px 18px;
+        text-align: center;
+        transition: transform 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: #FF6F00;
+    }
+    .metric-val {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #FF8F00;
+    }
+    .metric-lbl {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        opacity: 0.8;
+    }
+
+    /* Output Card / Section Wrapper */
+    .output-card {
+        background: rgba(255, 255, 255, 0.03);
+        border-left: 4px solid #FF6F00;
+        border-radius: 12px;
+        padding: 18px;
+        margin: 15px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+
+    /* Primary Accent Button Styling */
+    .stButton>button {
+        background: linear-gradient(135deg, #FF6F00 0%, #E65100 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 24px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        box-shadow: 0 4px 12px rgba(230, 81, 0, 0.25);
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 18px rgba(230, 81, 0, 0.4);
+    }
+
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 8px 16px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: rgba(255, 111, 0, 0.12) !important;
+        color: #FF6F00 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- SESSION STATE INITIALIZATION ---
 if "xp_points" not in st.session_state:
-    st.session_state.xp_points = 120
+    st.session_state.xp_points = 150
 if "practice_streak" not in st.session_state:
     st.session_state.practice_streak = 3
 if "roleplay_messages" not in st.session_state:
@@ -54,71 +163,88 @@ def play_sanskrit_audio(text_to_speak: str):
     except Exception:
         pass
 
-# --- SIDEBAR: Profile, Settings & Gamification ---
+# --- HEADER HERO BANNER ---
+st.markdown("""
+<div class="header-container">
+    <div class="header-title">🚩 सम्भाषणम् AI (Sambhāṣaṇa)</div>
+    <div class="header-subtitle">Intelligent Sanskrit Spoken Academy • Real-Time Voice Feedback • Situational Immersion</div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- SIDEBAR: Profile & Configuration ---
 with st.sidebar:
-    st.title("🚩 Sambhāṣaṇa AI")
-    st.caption("AI-Powered Spoken Sanskrit Academy")
-    
+    st.markdown("### ⚙️ **विन्यासः (Settings)**")
     api_key = st.text_input(
-        "Google Gemini API Key",
+        "Gemini API Key",
         type="password",
-        placeholder="AIza...",
+        placeholder="Paste AIza... key here",
         value=os.getenv("GEMINI_API_KEY", ""),
         help="Get your free key at aistudio.google.com/apikey",
     )
     
     level = st.selectbox(
-        "Student Tier / स्तरः",
+        "Proficiency Tier / स्तरः",
         [
-            "Beginner (प्रथमा - Daily Phrases & Basic Verbs)",
-            "Intermediate (मध्यमा - Tenses, Participles & Flow)",
-            "Advanced (उत्तमा - Shastric & Literary Sanskrit)"
+            "Beginner (प्रथमा - Daily Phrases)",
+            "Intermediate (मध्यमा - Tenses & Flow)",
+            "Advanced (उत्तमा - Shastric & Literary)"
         ],
         index=0,
     )
     
-    st.write("---")
-    st.subheader("🏆 Fluency & Gamification")
+    st.markdown("---")
+    st.markdown("### 🏆 **प्रगतिः (Progress)**")
+    
     col_sb1, col_sb2 = st.columns(2)
     with col_sb1:
-        st.metric("🔥 Streak", f"{st.session_state.practice_streak} Days")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-val">🔥 {st.session_state.practice_streak}</div>
+            <div class="metric-lbl">Day Streak</div>
+        </div>
+        """, unsafe_allow_html=True)
     with col_sb2:
-        st.metric("⭐ Points", f"{st.session_state.xp_points} XP")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-val">⭐ {st.session_state.xp_points}</div>
+            <div class="metric-lbl">Total XP</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-    st.write("🎖️ **Badges Earned:**")
-    st.markdown("🏅 *Śikṣā Novice* &nbsp;|&nbsp; 🗣️ *Vipani Explorer* &nbsp;|&nbsp; 📜 *Sandhi Master*")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.caption("🎖️ **Active Badges:** 🗣️ Vipani Explorer • 📜 Sandhi Master")
     
-    st.write("---")
-    if st.button("🔄 Reset Chat & Sessions"):
+    st.markdown("---")
+    if st.button("🔄 Reset Active Chat", use_container_width=True):
         st.session_state.roleplay_messages = []
         st.session_state.active_quiz = None
         st.rerun()
 
-# --- TOP LEVEL NAVIGATION TABS ---
+# --- TAB NAVIGATION ---
 tab_roleplay, tab_shiksha, tab_shadow, tab_translate, tab_grammar, tab_vault = st.tabs([
-    "💬 1. Roleplay & Scenarios",
-    "🎙️ 2. Śikṣā Phonetic Coach",
-    "🔁 3. Shadowing Drills",
-    "🌐 4. Universal Translator",
-    "🧩 5. Vyākaraṇa Engine",
-    "🧠 6. SRS Vault & Parīkṣā"
+    "💬 Roleplay & Tutor",
+    "🎙️ Śikṣā (Pronunciation)",
+    "🔁 Shadowing Drills",
+    "🌐 Universal Translation",
+    "🧩 Vyākaraṇa Engine",
+    "🧠 SRS Vault & Quiz"
 ])
 
 
 # =========================================================
-# TAB 1: CONVERSATIONAL ROLEPLAY & PERSONAS
+# TAB 1: CONVERSATIONAL ROLEPLAY
 # =========================================================
 with tab_roleplay:
-    st.subheader("💬 Situational Roleplay & Real-Life Immersion")
+    st.markdown("#### 💬 Situational Real-Life Immersion (सम्भाषण-प्रसङ्गाः)")
     
-    col_r1, col_r2 = st.columns([1, 1])
+    col_r1, col_r2 = st.columns(2)
     with col_r1:
         scenario = st.selectbox(
             "Select Scenario / प्रसङ्गः:",
             [
-                "At the Market (विपणिः - शाकक्रयणम् / Purchasing Vegetables)",
+                "At the Market (विपणिः - शाकक्रयणम् / Buying Vegetables)",
                 "At School / Gurukula (पाठशाला - शिष्टाचारः / Teacher & Student)",
-                "Travel & Directions (यात्रा - मार्गनिर्देशनम् / Station & Road)",
+                "Travel & Directions (यात्रा - मार्गनिर्देशनम् / Road & Station)",
                 "Welcoming Guests (अतिथि-सत्कारः / Home Hospitality)",
                 "Free Dialogue with Ācārya (मुक्त-सम्भाषणम् / Open Discussion)",
                 "Animal Storyteller (पञ्चतन्त्र-कथा: गजः, शुकः, मयूरः)"
@@ -128,34 +254,31 @@ with tab_roleplay:
         tutor_persona = st.selectbox(
             "Tutor Persona / स्वभावः:",
             [
-                "Acharya AI (Patient, Pedagogical & Socratic)",
-                "Mitram AI (Friendly Peer Learner / Informal)",
-                "Gaja-Guru (Playful Storybook Character for Kids)"
+                "Acharya AI (Patient & Socratic Guide)",
+                "Mitram AI (Friendly Peer Learner)",
+                "Gaja-Guru (Playful Storybook Animal for Kids)"
             ]
         )
 
-    SYSTEM_ROLEPLAY = f"""You are '{tutor_persona}' engaging the student in the scenario: '{scenario}'.
-Target Proficiency Level: {level}.
+    SYSTEM_ROLEPLAY = f"""You are '{tutor_persona}' in the scenario: '{scenario}'.
+Target Level: {level}.
 
 Rules:
-1. Converse dynamically in spoken Sarala Samskritam according to the persona and scenario.
-2. If the student makes an error (Vibhakti, Lakāra, Puruṣa mismatch, Sandhi):
-   - Highlight the mistake gently.
-   - Provide a Socratic hint or guiding rule.
-3. Offer a '✨ Say It Better' upgrade (a more idiomatic, natural Sanskrit expression for what they said).
+1. Converse dynamically in simple spoken Sanskrit according to the scenario.
+2. If student makes an error (Vibhakti, Lakara, Purusha), gently point it out.
+3. Offer a '✨ Say It Better' suggestion (a more natural/idiomatic Sanskrit expression).
 4. Always end your turn by asking an engaging situational question.
 
-Output Format:
+Format:
 [संस्कृतम्]: <Devanagari Dialogue>
 [IAST]: <Romanized Transliteration>
 [English]: <English Meaning>
-[✨ Say It Better]: <More natural or idiomatic way to express the student's thought>
-[मार्गदर्शनम्] (Include ONLY if the student made a mistake):
-- 🔍 रूपम्: <Incorrect student word>
-- 💡 सङ्केतः: <Guiding rule or correction>
+[✨ Say It Better]: <More idiomatic phrasing in Sanskrit with meaning>
+[मार्गदर्शनम्] (Include ONLY if error is made):
+- 🔍 रूपम्: <Incorrect word>
+- 💡 सङ्केतः: <Guiding rule>
 """
 
-    # Display dialogue history
     for msg in st.session_state.roleplay_messages:
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
@@ -164,9 +287,8 @@ Output Format:
                 line = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
                 play_sanskrit_audio(line)
 
-    # Audio Voice Input for Roleplay
-    st.write("🎙️ **Speak Your Response / वदतु (Voice Input):**")
-    role_audio = st.audio_input("Record voice for roleplay:")
+    st.markdown("##### 🎙️ **Speak Your Reply (वदतु):**")
+    role_audio = st.audio_input("Record voice reply:")
 
     if role_audio is not None:
         if not api_key:
@@ -189,7 +311,7 @@ Output Format:
                         "role": "user",
                         "parts": [
                             {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                            {"text": f"{SYSTEM_ROLEPLAY}\nListen to the student's spoken audio, transcribe it, and reply accordingly."}
+                            {"text": f"{SYSTEM_ROLEPLAY}\nListen to the spoken audio and respond in character."}
                         ]
                     }],
                 )
@@ -199,8 +321,7 @@ Output Format:
                     play_sanskrit_audio(line)
                 st.session_state.roleplay_messages.append({"role": "model", "content": resp.text})
 
-    # Text Input for Roleplay
-    if text_msg := st.chat_input("Or type dialogue (e.g. bho mātulā, phalasya mūlyaṁ kim?)..."):
+    if text_msg := st.chat_input("Or type here (e.g. bho mātulā, phalasya mūlyaṁ kim?)..."):
         if not api_key:
             st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
             st.stop()
@@ -238,61 +359,61 @@ Output Format:
 
 
 # =========================================================
-# TAB 2: PHONETIC PRONUNCIATION COACH (ŚIKṢĀ)
+# TAB 2: PRONUNCIATION COACH (ŚIKṢĀ)
 # =========================================================
 with tab_shiksha:
-    st.subheader("🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Accent Coach)")
-    st.caption("AI evaluates your vocal acoustics: Articulation points (दन्त्य/मूर्धन्य), Mahāprāṇa aspiration, and vowel timing.")
+    st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Coach)")
+    st.caption("AI evaluates mouth acoustics: Dental vs Retroflex, Mahāprāṇa aspiration, and vowel duration.")
     
     drill_options = [
-        "सत्यं वद, धर्मं चर। (Speak truth, practice righteousness)",
-        "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge confers humility)",
+        "सत्यं वद, धर्मं चर। (Speak truth, walk in righteousness)",
+        "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
         "वृक्षात् फलानि भूमौ पतन्ति। (Fruits fall from tree - Mahāprāṇa 'ph' & 'bh')",
         "अहं प्रतिदिनं प्रातः पञ्चवादने उत्तिष्ठामि। (I wake at 5 AM - Retroflex 'ṣṭh')",
-        "अथातो ब्रह्मजिज्ञासा। (Now begins the inquiry into Brahman - Aspirated 'th' & 'jh')"
+        "अथातो ब्रह्मजिज्ञासा। (Now begins inquiry into Brahman - Aspirated 'th' & 'jh')"
     ]
     
-    target_drill = st.selectbox("Choose Target Phrase / वाक्यम्:", drill_options)
+    target_drill = st.selectbox("Choose Target Phrase to Practice:", drill_options)
     clean_target = target_drill.split('(')[0].strip()
     
-    col_sh1, col_sh2 = st.columns([1, 1])
+    col_sh1, col_sh2 = st.columns(2)
     with col_sh1:
-        st.write("🔊 **1. Master Reference Chanting:**")
+        st.markdown("##### 🔊 **1. Master Reference Chanting:**")
         play_sanskrit_audio(clean_target)
     with col_sh2:
-        st.write("🎙️ **2. Record Your Pronunciation:**")
-        rec_shiksha = st.audio_input("Record your voice chanting the sentence:")
+        st.markdown("##### 🎙️ **2. Record Your Chanting:**")
+        rec_shiksha = st.audio_input("Chant the phrase clearly:")
 
     if rec_shiksha is not None:
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter your Gemini API key in sidebar.")
             st.stop()
             
         client = genai.Client(api_key=api_key)
-        with st.spinner("Analyzing phoneme frequencies, tongue placement, and aspiration..."):
-            PROMPT_SHIKSHA = f"""You are a Pāṇinīya Śikṣā (पाणिनीय-शिक्षा) phonetic acoustic evaluator.
+        with st.spinner("Analyzing tongue placement & acoustic frequencies..."):
+            PROMPT_SHIKSHA = f"""You are a Pāṇinīya Śikṣā (पाणिनीय-शिक्षा) phonetic evaluator.
 Target Sentence: "{clean_target}"
 
 Evaluate the student's audio recording strictly on:
 1. Overall Pronunciation Score (0 to 100%).
 2. Articulation Points (उच्चारण-स्थानम्): Dental (दन्त्य) vs Retroflex (मूर्धन्य), Guttural (कण्ठ्य), Labial (ओष्ठ्य).
-3. Aspiration (प्राण-प्रयत्नः): Proper breath release on Mahāprāṇa consonants (ख्, घ्, थ्, ध्, फ्, भ्) vs Alpaprāṇa.
-4. Vowel Timing (स्वर-मात्रा): Hrasva (1 mātrā) vs Dīrgha (2 mātrās) vowel duration.
-5. Actionable Tongue Placement Tip: Practical tip to achieve native Sanskrit clarity.
+3. Aspiration (प्राण-प्रयत्नः): Mahāprāṇa consonants (ख्, घ्, थ्, ध्, फ्, भ्) vs Alpaprāṇa.
+4. Vowel Timing (स्वर-मात्रा): Hrasva (1 mātrā) vs Dīrgha (2 mātrās).
+5. Actionable Tongue Placement Tip.
 
-Format as:
+Format cleanly:
 ### 🎯 उच्चारण-अङ्काः (Score): [XX / 100]
 **शुद्धता-स्तरः (Clarity Rating):** [उत्कृष्टम् (Excellent) / समीचीनम् (Good) / अभ्यासोऽपेक्षितः (Needs Practice)]
 
 ---
 ### 🔍 ध्वन्युच्चारण-विश्लेषणम् (Phonetic Breakdown):
-- **उच्चारण-स्थानानि (Place of Articulation)**: <Analysis>
-- **प्राण-प्रयत्नः (Aspiration & Breath Release)**: <Analysis>
-- **मात्रा-दीर्घता (Vowel Length Precision)**: <Analysis>
+- **उच्चारण-स्थानानि**: <Analysis>
+- **प्राण-प्रयत्नः**: <Analysis>
+- **मात्रा-दीर्घता**: <Analysis>
 
 ---
 ### 💡 जिह्वा-स्थान-मार्गदर्शनम् (Tongue & Breath Guidance):
-<Concrete, practical advice on mouth position and air release>
+<Practical tip on mouth position and air release>
 """
             try:
                 resp = client.models.generate_content(
@@ -312,11 +433,11 @@ Format as:
 
 
 # =========================================================
-# TAB 3: SHADOWING & FLUENCY PACING DRILLS
+# TAB 3: SHADOWING DRILLS
 # =========================================================
 with tab_shadow:
-    st.subheader("🔁 Listen & Repeat (Shadowing & Pacing Drills)")
-    st.caption("Build oral muscle memory and conversational cadence (Words Per Minute / WPM).")
+    st.markdown("#### 🔁 Listen & Repeat (Shadowing & Pacing Drills)")
+    st.caption("Build oral muscle memory, rhythm, and conversational cadence.")
     
     shadow_list = [
         "भवतः गृहं कुत्र अस्ति? मम गृहं समीपे एव अस्ति।",
@@ -326,33 +447,35 @@ with tab_shadow:
     
     s_choice = st.selectbox("Select Shadowing Passage:", shadow_list)
     
-    st.write("🎧 **Step 1: Listen to Native Pacing**")
-    play_sanskrit_audio(s_choice)
-    
-    st.write("🎙️ **Step 2: Shadow (Repeat in one continuous breath)**")
-    shadow_user_audio = st.audio_input("Record your repetition:")
+    col_sw1, col_sw2 = st.columns(2)
+    with col_sw1:
+        st.markdown("##### 🎧 **1. Listen to Native Pacing:**")
+        play_sanskrit_audio(s_choice)
+    with col_sw2:
+        st.markdown("##### 🎙️ **2. Shadow in One Breath:**")
+        shadow_user_audio = st.audio_input("Repeat phrase:")
     
     if shadow_user_audio is not None:
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key.")
+            st.warning("⚠️ Enter Gemini API key.")
             st.stop()
         client = genai.Client(api_key=api_key)
-        with st.spinner("Analyzing fluency cadence and speech pace..."):
+        with st.spinner("Analyzing pacing and cadence..."):
             PROMPT_SHADOW = f"""You are a Sanskrit Fluency and Speech-Rate Assessor.
 Target Reference: "{s_choice}"
 
 Analyze the student's spoken audio:
-1. Cadence & Rhythm: Natural sentence flow without unnatural pauses.
-2. Estimated Words Per Minute (WPM) & Speech Pacing: [e.g. 60-80 WPM is ideal for beginners].
-3. Native Language Interference: Did they apply English or mother-tongue stress patterns?
-4. Fluency Score: (0-100%).
+1. Cadence & Rhythm: Natural sentence flow without hesitation.
+2. Estimated Words Per Minute (WPM) & Speech Pacing.
+3. Native Language Stress Interference.
+4. Fluency Score (0-100%).
 
 Format:
 ### ⚡ गतिः एवं धाराप्रवाहः (Fluency & Pacing Analysis):
 - **Fluency Score**: [XX / 100]
-- **Speed & Cadence**: <Speed commentary>
-- **Rhythm & Anvaya Flow**: <Rhythm commentary>
-- **Fluency Tip**: <How to link words smoothly with Sandhi>
+- **Speed & Cadence**: <Commentary>
+- **Rhythm & Flow**: <Commentary>
+- **Sandhi Fluency Tip**: <Tip>
 """
             try:
                 resp = client.models.generate_content(
@@ -372,22 +495,22 @@ Format:
 
 
 # =========================================================
-# TAB 4: UNIVERSAL TRANSLATION ENGINE
+# TAB 4: UNIVERSAL TRANSLATOR
 # =========================================================
 with tab_translate:
-    st.subheader("🌐 Universal Multi-Language ↔ Sanskrit Translator")
+    st.markdown("#### 🌐 Universal Multi-Language ↔ Sanskrit Translator")
     
-    trans_mode = st.radio("Direction / दिशा", ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"], horizontal=True)
+    trans_mode = st.radio("Translation Direction", ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"], horizontal=True)
     
     if trans_mode == "Sanskrit ➔ Any Language":
-        dest_lang = st.selectbox("Translate Into:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)", "Malayalam (മലയാളം)"])
+        dest_lang = st.selectbox("Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)", "Malayalam (മലയാളം)"])
     
-    t_input = st.text_area("Enter Text (or speak below):", height=80)
+    t_input = st.text_area("Enter Text:", height=70, placeholder="Type sentence here...")
     t_voice = st.audio_input("Or speak input to translate:")
     
-    if st.button("Execute Translation / अनुवादं कुरु") or (t_voice is not None):
+    if st.button("Execute Translation / अनुवादं कुरु", use_container_width=True) or (t_voice is not None):
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter Gemini API key in sidebar.")
             st.stop()
         
         client = genai.Client(api_key=api_key)
@@ -434,25 +557,28 @@ MANDATORY FORMAT:
 
 
 # =========================================================
-# TAB 5: VYĀKARAṆA & PĀṆINIAN ENGINE
+# TAB 5: VYĀKARAṆA ENGINE
 # =========================================================
 with tab_grammar:
-    st.subheader("🧩 पाणिनीय-व्याकरण-उपकरणम् (Paninian Grammar Engine)")
+    st.markdown("#### 🧩 पाणिनीय-व्याकरण-उपकरणम् (Paninian Grammar Engine)")
     
-    g_tool = st.selectbox(
-        "Select Tool / उपकरणम्:",
-        [
-            "Sandhi Splitter & Sūtra Rules (सन्धि-विच्छेदः)",
-            "Shabdarupa Declension Tables (शब्दरूपाणि - 8 Vibhaktis)",
-            "Dhaturoopa Conjugation (धातुरूपाणि - 10 Lakaras)",
-            "Samāsa Analysis & Vigraha Vākya (समास-विग्रहः)"
-        ]
-    )
-    g_query = st.text_input("Enter Word / Root / Compound (e.g. राम, भू, गम्, पीताम्बरः, देवेन्द्रः):")
+    col_g1, col_g2 = st.columns([1, 1])
+    with col_g1:
+        g_tool = st.selectbox(
+            "Select Tool / उपकरणम्:",
+            [
+                "Sandhi Splitter & Sūtra Rules (सन्धि-विच्छेदः)",
+                "Shabdarupa Declension Tables (शब्दरूपाणि - 8 Vibhaktis)",
+                "Dhaturoopa Conjugation (धातुरूपाणि - 10 Lakaras)",
+                "Samāsa Analysis & Vigraha Vākya (समास-विग्रहः)"
+            ]
+        )
+    with col_g2:
+        g_query = st.text_input("Enter Word / Root / Compound:", placeholder="e.g. राम, भू, गम्, पीताम्बरः")
     
-    if st.button("Analyze Grammar / विश्लेषणं कुरु"):
+    if st.button("Generate Paninian Analysis", use_container_width=True):
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key.")
+            st.warning("⚠️ Enter Gemini API key.")
             st.stop()
         if not g_query.strip():
             st.warning("Please enter a term.")
@@ -472,37 +598,35 @@ with tab_grammar:
 
 
 # =========================================================
-# TAB 6: SRS VOCABULARY VAULT & PARĪKṢĀ
+# TAB 6: SRS VAULT & PARĪKṢĀ
 # =========================================================
 with tab_vault:
-    st.subheader("🧠 Spaced Repetition (SRS) Vocabulary Vault & Parīkṣā")
+    st.markdown("#### 🧠 Spaced Repetition (SRS) Vocabulary Vault & Parīkṣā")
     
-    col_v1, col_v2 = st.columns([1, 1])
+    col_v1, col_v2 = st.columns(2)
     with col_v1:
-        st.write("### 📚 Personal Spaced Repetition Vault")
-        st.caption("Words automatically surfaced at optimal recall intervals.")
+        st.markdown("##### 📚 **Personal Word Vault (शब्दकोशः)**")
         for item in st.session_state.vocab_vault:
-            with st.container():
-                st.markdown(f"**{item['word']}** — {item['meaning']} | *Root:* `{item['dhatu']}` | ⏳ Due: `{item['review_due']}`")
+            st.markdown(f"• **{item['word']}** — {item['meaning']} | *Root:* `{item['dhatu']}` | ⏳ Due: `{item['review_due']}`")
         
-        with st.expander("➕ Manually Add Word to Vault"):
+        with st.expander("➕ Add New Word to Vault"):
             nw = st.text_input("Sanskrit Word (पदम्):")
             nm = st.text_input("Meaning (अर्थः):")
             nd = st.text_input("Root / Pratipadika (मूलम्):")
-            if st.button("Save to SRS Vault"):
+            if st.button("Save Word to Vault", use_container_width=True):
                 if nw and nm:
                     st.session_state.vocab_vault.append({"word": nw, "meaning": nm, "dhatu": nd if nd else nw, "level": "Learner", "review_due": "Tomorrow"})
                     st.session_state.xp_points += 5
-                    st.success(f"Saved '{nw}' to your vault (+5 XP)!")
+                    st.success(f"Saved '{nw}' (+5 XP)!")
                     st.rerun()
 
     with col_v2:
-        st.write("### 📝 Daily Interactive Parīkṣā (परीक्षा)")
-        quiz_topic = st.selectbox("Drill Topic:", ["Vibhakti & Karaka Agreement", "Dhaturoopa & Lakara Tenses", "Sandhi Identification", "Spoken Idioms & Vocabulary"])
+        st.markdown("##### 📝 **Daily Interactive Parīkṣā (परीक्षा)**")
+        quiz_topic = st.selectbox("Topic:", ["Vibhakti & Karaka Agreement", "Dhaturoopa & Lakara Tenses", "Sandhi Identification", "Spoken Idioms & Vocabulary"])
         
-        if st.button("⚡ Generate Interactive Quiz"):
+        if st.button("⚡ Generate Interactive Quiz", use_container_width=True):
             if not api_key:
-                st.warning("⚠️ Please enter your Gemini API key.")
+                st.warning("⚠️ Enter Gemini API key.")
                 st.stop()
             client = genai.Client(api_key=api_key)
             with st.spinner("Generating 3-question MCQ quiz..."):
