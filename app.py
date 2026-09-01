@@ -56,7 +56,7 @@ def generate_gemini_content(client, contents, config=None, is_json=False, max_re
                 continue
             raise e
 
-# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode + SRS + Social Leagues) ---
+# --- DATABASE PERSISTENCE LAYER WITH AUTO-MIGRATION ---
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -68,6 +68,8 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
+    
+    # 1. User Profile Table
     c.execute('''
         CREATE TABLE IF NOT EXISTS user_profile (
             id TEXT PRIMARY KEY,
@@ -78,6 +80,8 @@ def init_db():
             last_active TEXT
         )
     ''')
+    
+    # 2. Vocab Vault Table (Base Schema)
     c.execute('''
         CREATE TABLE IF NOT EXISTS vocab_vault (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,13 +90,25 @@ def init_db():
             meaning TEXT,
             dhatu TEXT,
             level TEXT,
-            review_due TEXT,
-            interval_days INTEGER DEFAULT 1,
-            repetition_count INTEGER DEFAULT 0,
-            next_review_date TEXT,
-            UNIQUE(user_id, word)
+            review_due TEXT
         )
     ''')
+    
+    # Auto-Migration: Add newly added columns to existing tables safely
+    c.execute("PRAGMA table_info(vocab_vault)")
+    existing_cols = [col[1] for col in c.fetchall()]
+    
+    if "interval_days" not in existing_cols:
+        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN interval_days INTEGER DEFAULT 1")
+        except Exception: pass
+    if "repetition_count" not in existing_cols:
+        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN repetition_count INTEGER DEFAULT 0")
+        except Exception: pass
+    if "next_review_date" not in existing_cols:
+        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN next_review_date TEXT")
+        except Exception: pass
+        
+    # 3. Feedback Logs Table
     c.execute('''
         CREATE TABLE IF NOT EXISTS feedback_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,7 +122,7 @@ def init_db():
         )
     ''')
     
-    # Pre-populate leaderboard peer benchmarks if table is fresh
+    # Seed Leaderboard Users
     today_str = str(datetime.date.today())
     c.execute('SELECT COUNT(*) FROM user_profile')
     if c.fetchone()[0] == 0:
@@ -123,7 +139,7 @@ def init_db():
             VALUES (?, ?, ?, ?, ?, ?)
         ''', seed_users)
 
-    # Pre-populate starter vocabulary if empty
+    # Seed Default Vocabulary
     c.execute('SELECT COUNT(*) FROM vocab_vault WHERE user_id = "default_user"')
     if c.fetchone()[0] == 0:
         starter_vocab = [
@@ -362,7 +378,6 @@ st.markdown("""
         margin-bottom: 16px;
     }
     
-    /* LEADERBOARD CARD THEME */
     .league-header-card {
         background: linear-gradient(135deg, #3E2723 0%, #1A0C00 100%);
         border: 2px solid #FF8F00;
@@ -1200,13 +1215,12 @@ with tab_diagnostic:
             st.info("💡 Your active learning tier in the sidebar and oral dialogue sessions has been automatically updated!")
 
 # =========================================================
-# TAB 5: SOCIAL LEAGUES & GLOBAL LEADERBOARD (POINT 5)
+# TAB 5: SOCIAL LEAGUES & GLOBAL LEADERBOARD
 # =========================================================
 with tab_leagues:
     st.markdown("#### 🏆 साप्ताहिक-यशःपट्टिका एवं मण्डल-श्रेणी (Weekly Social Leagues)")
     st.caption("Compete with Sanskrit learners worldwide. Earn XP through oral dialogues, flashcard mastery, and translations to gain promotion!")
     
-    # User's current league tier computation
     if u_xp >= 500:
         league_name = "🥇 ब्रह्मवर्चस् मण्डलम् (Brahmavarcasa Diamond League)"
         league_color = "#FFD54F"
@@ -1238,25 +1252,14 @@ with tab_leagues:
     st.progress(min(1.0, max(0.0, progress_val)), text=f"Promotion Progress: {next_league_target}")
     st.write("")
 
-    # Render Leaderboard Standings
     leaders = get_global_leaderboard()
     
     col_l1, col_l2 = st.columns([2, 1])
     with col_l1:
         st.markdown("##### 🌍 **Global Weekly Rankings:**")
-        
         for rank, (uname, ulevel, ustrk, uxp, uid) in enumerate(leaders, start=1):
             is_me = (uid == st.session_state.user_session_id)
-            
-            # Rank Medal / Emoji
-            if rank == 1:
-                medal = "🥇"
-            elif rank == 2:
-                medal = "🥈"
-            elif rank == 3:
-                medal = "🥉"
-            else:
-                medal = f"#{rank}"
+            medal = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
                 
             st.markdown(f"""
             <div class="leaderboard-row {'is-current-user' if is_me else ''}">
@@ -1285,12 +1288,6 @@ with tab_leagues:
         * 📄 **PDF Bulk Word Ingest:** `+5 XP per word`
         * 📝 **Placement Test Clear:** `Up to +100 XP`
         * 🕉️ **Chandaḥ Verse Scan:** `+20 XP`
-        """)
-        
-        st.markdown("##### 🎖️ **Weekly League Rewards:**")
-        st.markdown("""
-        * **Top 3 Finishers:** Promoted to Diamond League with custom Scholar Avatar Frame.
-        * **Top 10 Finishers:** Double XP Boost for Spoken Sanskrit drills.
         """)
 
 # =========================================================
