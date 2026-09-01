@@ -6,6 +6,7 @@ import sqlite3
 import datetime
 import base64
 import json
+import re
 from pypdf import PdfReader
 
 # Enforce UTF-8 encoding across all runtime environments
@@ -215,6 +216,14 @@ st.markdown("""
         50% { height: 9px; width: 16px; background: #5C0B0B; }
         100% { height: 5px; width: 18px; }
     }
+    
+    .sentence-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 143, 0, 0.25);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -266,7 +275,7 @@ TEACHERS = {
 }
 
 # --- HIGH-SPEED IN-MEMORY TTS AUDIO GENERATOR ---
-@st.cache_data(show_spinner=False, max_entries=100)
+@st.cache_data(show_spinner=False, max_entries=200)
 def get_speech_audio_b64(text: str, tld: str, slow: bool) -> str:
     try:
         tts = gTTS(text=text, lang='hi', tld=tld, slow=slow)
@@ -323,11 +332,33 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     </script>
     """, unsafe_allow_html=True)
 
+# Helper: Sentence Splitter for Batch Translation
+def split_into_sentences(text: str, max_limit=50):
+    lines = text.split('\n')
+    sentences = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        parts = re.split(r'([.?!।॥]+)', line)
+        temp = ""
+        for p in parts:
+            if re.match(r'^[.?!।॥]+$', p):
+                temp += p
+                if temp.strip():
+                    sentences.append(temp.strip())
+                temp = ""
+            else:
+                temp += p
+        if temp.strip():
+            sentences.append(temp.strip())
+    return sentences[:max_limit]
+
 # --- APP HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Low Latency • Bulk PDF Ingestion</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • 50-Sentence Batch Translator • High Latency Optimization</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -403,11 +434,11 @@ tab_roleplay, tab_bulk_vocab, tab_shiksha, tab_chandas, tab_trans = st.tabs([
     "📚 2. Bulk PDF Vocabulary",
     "🎙️ 3. Śikṣā Phonetics",
     "🕉️ 4. Svara & Chandaḥ",
-    "🌐 5. Universal Translator"
+    "🌐 5. Sentence-by-Sentence Batch Translator (50 Sentences)"
 ])
 
 # =========================================================
-# TAB 1: HIGH-ACCURACY ORAL ROLEPLAY + REMARKS ON EVERY TURN
+# TAB 1: HIGH-ACCURACY ORAL ROLEPLAY
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Situational Conversational Immersion (सजीव-सम्भाषणम्)")
@@ -423,7 +454,6 @@ with tab_roleplay:
         ]
     )
     
-    # Render Chat History
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
@@ -433,7 +463,6 @@ with tab_roleplay:
                 if full_s:
                     render_talking_avatar(full_s, selected_teacher, auto_play=False)
                 
-                # Inline Remark Form on Every Response
                 with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
                     with st.form(key=f"rem_form_{idx}"):
                         fb_type = st.selectbox(
@@ -453,9 +482,7 @@ with tab_roleplay:
                             save_user_feedback(st.session_state.user_session_id, selected_teacher, prior_user, msg["content"], fb_type, fb_text)
                             st.success("✅ Remark saved successfully into the database!")
 
-    # Native Long-Duration Sanskrit Audio Input
-    st.markdown("##### 🎙️ **Speak into Microphone (वदतु - No Time Limit):**")
-    st.caption("Press record, speak your full paragraph or question (can speak for 1-2+ minutes), then press stop.")
+    st.markdown("##### 🎙️ **Speak into Microphone (वदतु):**")
     user_audio = st.audio_input("Record continuous voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
 
     if user_audio is not None:
@@ -502,7 +529,6 @@ with tab_roleplay:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    # Text Chat Input
     if text_input := st.chat_input("Type in Sanskrit, English, or Telugu (e.g. mama nama, katham asti)..."):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
@@ -549,8 +575,6 @@ with tab_roleplay:
 # =========================================================
 with tab_bulk_vocab:
     st.markdown("#### 📚 Bulk PDF Sanskrit Vocabulary Ingestion Engine")
-    st.caption("Upload Sanskrit textbooks, PDFs, or lesson chapters to batch-extract unique vocabulary words, roots, and meanings.")
-    
     col_pdf1, col_pdf2 = st.columns([1, 1])
     with col_pdf1:
         uploaded_pdf = st.file_uploader("Upload Sanskrit PDF File:", type=["pdf"])
@@ -579,10 +603,8 @@ with tab_bulk_vocab:
 Return a STRICT JSON array of objects with keys: "word", "meaning", "dhatu", "level".
 Example:
 [
-  {{"word": "गच्छति", "meaning": "goes", "dhatu": "गम्", "level": "Beginner"}},
-  {{"word": "विद्यार्थी", "meaning": "student", "dhatu": "विद्या + अर्थिन्", "level": "Beginner"}}
+  {{"word": "गच्छति", "meaning": "goes", "dhatu": "गम्", "level": "Beginner"}}
 ]
-
 Text:
 {extracted_text[:4000]}
 """
@@ -624,7 +646,6 @@ Text:
 # =========================================================
 with tab_shiksha:
     st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Accent Coach)")
-    
     drill = st.selectbox("Choose Target Phrase to Master:", [
         "सत्यं वद, धर्मं चर। (Speak truth, practice righteousness)",
         "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
@@ -689,34 +710,110 @@ with tab_chandas:
                 st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 5: UNIVERSAL TRANSLATOR
+# TAB 5: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
 # =========================================================
 with tab_trans:
-    st.markdown("#### 🌐 Universal Multi-Language ↔ Sanskrit Translator")
+    st.markdown("#### 🌐 Sentence-by-Sentence Batch Translator (Up to 50 Sentences at Once)")
+    st.caption("Paste whole essays, paragraphs, or lists. The engine automatically splits into distinct sentences, translates each individually, provides Padaccheda/Sandhi breakdown, and enables audio playback.")
     
-    trans_dir = st.radio("Direction", ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"], horizontal=True)
-    if trans_dir == "Sanskrit ➔ Any Language":
-        t_lang = st.selectbox("Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)"])
+    col_t1, col_t2 = st.columns([1, 1])
+    with col_t1:
+        trans_direction = st.radio("Translation Direction:", ["Any Language ➔ Sanskrit (संस्कृतम्)", "Sanskrit (संस्कृतम्) ➔ Any Language"], horizontal=True)
+    with col_t2:
+        if trans_direction.startswith("Sanskrit"):
+            target_lang = st.selectbox("Translate to Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"])
+        else:
+            target_lang = "Sanskrit (Devanagari + IAST)"
     
-    t_in = st.text_area("Enter sentence to translate:", height=70)
+    input_text = st.text_area(
+        "Enter sentences or paragraph (Max 50 sentences):",
+        value="Speak Without Pressure. Take the quiz and start speaking your chosen language with an AI tutor today. Praktika helps you practice without pressure and turn short lessons into real progress.",
+        height=140
+    )
     
-    if st.button("Translate / अनुवादं कुरु", use_container_width=True) and t_in.strip():
+    detected_sentences = split_into_sentences(input_text, max_limit=50)
+    st.caption(f"📊 **Detected Sentences to Process:** `{len(detected_sentences)}` (Max batch: 50)")
+
+    if st.button("🚀 Translate Sentence-by-Sentence / वाक्यशः अनुवादं कुरु", use_container_width=True) and input_text.strip():
         if not api_key:
-            st.warning("⚠️ Enter Gemini API key.")
+            st.warning("⚠️ Enter your Gemini API key in the sidebar.")
             st.stop()
+        
         client = genai.Client(api_key=api_key)
-        with st.spinner("Translating..."):
-            prompt = "Translate into Sanskrit with full sentence, IAST, and Padaccheda." if trans_dir.startswith("Any") else f"Translate into {t_lang} with Sandhi split and word meanings."
+        with st.spinner(f"Translating {len(detected_sentences)} sentences sentence-by-sentence with grammatical Sandhi split..."):
             try:
+                # Prepare JSON batch payload for Gemini-3.6-Flash
+                BATCH_PROMPT = f"""You are a Sanskrit Grammatical Translation Engine.
+Translate the following array of {len(detected_sentences)} sentences individually.
+Direction: {trans_direction} (Target: {target_lang}).
+
+Input sentences array:
+{json.dumps(detected_sentences, ensure_ascii=False)}
+
+Return a STRICT JSON array of objects with exact keys:
+- "sentence_num": integer (1, 2, 3...)
+- "source_sentence": original sentence
+- "translated_sentence": translated sentence in target script
+- "iast": Romanized IAST transliteration
+- "padaccheda": Word-by-word grammatical Sandhi split with root meanings
+
+Ensure pure, natural, idiomatic translation for every single sentence.
+"""
                 resp = client.models.generate_content(
                     model=ACTIVE_MODEL,
-                    contents=[{"role": "user", "parts": [{"text": f"{prompt}\nInput: {t_in}"}]}],
-                    config={"temperature": 0.2, "max_output_tokens": 400}
+                    contents=[{"role": "user", "parts": [{"text": BATCH_PROMPT}]}],
+                    config={"temperature": 0.1, "response_mime_type": "application/json"}
                 )
-                st.markdown(resp.text)
-                if "संस्कृतम्" in resp.text:
-                    full_s = extract_complete_sanskrit_speech(resp.text)
-                    if full_s:
-                        render_talking_avatar(full_s, selected_teacher, auto_play=False)
+                
+                batch_results = json.loads(resp.text)
+                st.success(f"🎉 Successfully translated all {len(batch_results)} sentences!")
+                
+                # --- DISPLAY SENTENCE-BY-SENTENCE RESULTS ---
+                for item in batch_results:
+                    s_num = item.get("sentence_num", 1)
+                    src_s = item.get("source_sentence", "")
+                    tr_s = item.get("translated_sentence", "")
+                    iast_s = item.get("iast", "")
+                    pada_s = item.get("padaccheda", "")
+                    
+                    st.markdown(f"""
+                    <div class="sentence-card">
+                        <div style="font-weight:800; color:#FF8F00; font-size:0.95rem; margin-bottom:4px;">
+                            Sentence #{s_num}
+                        </div>
+                        <div style="font-size:0.95rem; opacity:0.85; margin-bottom:8px;">
+                            <b>Original:</b> {src_s}
+                        </div>
+                        <div style="font-size:1.15rem; color:#FFF; font-weight:700; margin-bottom:4px;">
+                            <b>अनुवादः:</b> {tr_s}
+                        </div>
+                        <div style="font-size:0.88rem; color:#FFD54F; margin-bottom:6px;">
+                            <b>IAST:</b> <i>{iast_s}</i>
+                        </div>
+                        <div style="font-size:0.82rem; color:#81C784; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:6px;">
+                            <b>पदच्छेदः एवं सन्धिविश्लेषणम् (Grammar):</b> {pada_s}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Individual audio player for each translated sentence
+                    if trans_direction.startswith("Any"):
+                        audio_b64 = get_speech_audio_b64(tr_s, t_info["tld"], t_info["slow"])
+                        if audio_b64:
+                            st.audio(f"data:audio/mp3;base64,{audio_b64}", format="audio/mp3")
+
+                # Export option
+                export_text = ""
+                for it in batch_results:
+                    export_text += f"[{it.get('sentence_num')}] Source: {it.get('source_sentence')}\nTranslation: {it.get('translated_sentence')}\nIAST: {it.get('iast')}\nPadaccheda: {it.get('padaccheda')}\n\n"
+                
+                st.download_button(
+                    label="📥 Download All Translated Sentences (.txt)",
+                    data=export_text,
+                    file_name="sanskrit_batch_translation.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+
             except Exception as e:
-                st.error(f"Error: {str(e)}")
+                st.error(f"Translation Error: {str(e)}")
