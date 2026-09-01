@@ -36,10 +36,6 @@ DB_FILE = os.path.join(BASE_DIR, "sambhāṣaṇa_concurrency.db")
 
 # --- RESILIENT GEMINI CALLER WITH AUTOMATIC RETRY ---
 def generate_gemini_content(client, contents, config=None, is_json=False, max_retries=3):
-    """
-    Executes calls specifically against gemini-3.6-flash with exponential backoff
-    to handle free-tier rate limits smoothly.
-    """
     cfg = config.copy() if config else {}
     if is_json:
         cfg["response_mime_type"] = "application/json"
@@ -54,13 +50,12 @@ def generate_gemini_content(client, contents, config=None, is_json=False, max_re
             return resp.text
         except Exception as e:
             err_str = str(e)
-            # If rate-limited (429), wait and retry automatically
             if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str) and attempt < max_retries - 1:
                 time.sleep(2 * (attempt + 1))
                 continue
             raise e
 
-# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode) ---
+# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode + SRS Engine) ---
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -91,6 +86,9 @@ def init_db():
             dhatu TEXT,
             level TEXT,
             review_due TEXT,
+            interval_days INTEGER DEFAULT 1,
+            repetition_count INTEGER DEFAULT 0,
+            next_review_date TEXT,
             UNIQUE(user_id, word)
         )
     ''')
@@ -106,13 +104,31 @@ def init_db():
             remark_text TEXT
         )
     ''')
+    
+    # Pre-populate starter vocabulary if empty
+    today_str = str(datetime.date.today())
+    c.execute('SELECT COUNT(*) FROM vocab_vault WHERE user_id = "default_user"')
+    if c.fetchone()[0] == 0:
+        starter_vocab = [
+            ("default_user", "अस्तु", "Alright / Let it be", "अस् (to be)", "Beginner", "Today", 1, 0, today_str),
+            ("default_user", "धन्यवादः", "Thank you", "धन्य + वाद्", "Beginner", "Today", 1, 0, today_str),
+            ("default_user", "पुनर्मिलामः", "See you again", "मिल् (to meet)", "Beginner", "Today", 1, 0, today_str),
+            ("default_user", "किम्", "What / Why", "सर्वनामन्", "Beginner", "Today", 1, 0, today_str),
+            ("default_user", "कुत्र", "Where", "अव्ययम्", "Beginner", "Today", 1, 0, today_str)
+        ]
+        c.executemany('''
+            INSERT OR IGNORE INTO vocab_vault 
+            (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', starter_vocab)
+
     conn.commit()
     conn.close()
 
 init_db()
 
 if "user_session_id" not in st.session_state:
-    st.session_state.user_session_id = f"user_{int(time.time()*1000)}"
+    st.session_state.user_session_id = "default_user"
 
 def get_user_stats(uid):
     conn = get_db_connection()
@@ -134,7 +150,21 @@ def update_user_xp(uid, xp_add=10):
     conn.commit()
     conn.close()
 
-def get_user_vault(uid):
+def get_due_flashcards(uid):
+    conn = get_db_connection()
+    c = conn.cursor()
+    today_str = str(datetime.date.today())
+    c.execute('''
+        SELECT id, word, meaning, dhatu, level, interval_days, repetition_count 
+        FROM vocab_vault 
+        WHERE user_id = ? AND (next_review_date <= ? OR next_review_date IS NULL OR review_due = 'Today')
+        ORDER BY id ASC
+    ''', (uid, today_str))
+    rows = c.fetchall()
+    conn.close()
+    return [{"id": r[0], "word": r[1], "meaning": r[2], "dhatu": r[3], "level": r[4], "interval": r[5] or 1, "reps": r[6] or 0} for r in rows]
+
+def get_all_vault_words(uid):
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('SELECT word, meaning, dhatu, level, review_due FROM vocab_vault WHERE user_id = ? ORDER BY id DESC', (uid,))
@@ -142,13 +172,56 @@ def get_user_vault(uid):
     conn.close()
     return [{"word": r[0], "meaning": r[1], "dhatu": r[2], "level": r[3], "review_due": r[4]} for r in rows]
 
+def update_srs_rating(card_id, rating, current_interval, current_reps, uid):
+    conn = get_db_connection()
+    c = conn.cursor()
+    today = datetime.date.today()
+    
+    if rating == "again":
+        new_interval = 1
+        new_reps = 0
+        next_date = today
+        review_due_label = "Today"
+        xp_gain = 0
+    elif rating == "hard":
+        new_interval = max(1, int(current_interval * 1.2))
+        new_reps = current_reps + 1
+        next_date = today + datetime.timedelta(days=new_interval)
+        review_due_label = f"In {new_interval}d"
+        xp_gain = 5
+    elif rating == "good":
+        new_interval = max(3, int(current_interval * 2.0))
+        new_reps = current_reps + 1
+        next_date = today + datetime.timedelta(days=new_interval)
+        review_due_label = f"In {new_interval}d"
+        xp_gain = 10
+    else:  # easy
+        new_interval = max(7, int(current_interval * 3.0))
+        new_reps = current_reps + 1
+        next_date = today + datetime.timedelta(days=new_interval)
+        review_due_label = f"In {new_interval}d"
+        xp_gain = 20
+        
+    c.execute('''
+        UPDATE vocab_vault 
+        SET interval_days = ?, repetition_count = ?, next_review_date = ?, review_due = ?
+        WHERE id = ?
+    ''', (new_interval, new_reps, str(next_date), review_due_label, card_id))
+    
+    if xp_gain > 0:
+        c.execute('UPDATE user_profile SET xp = xp + ? WHERE id = ?', (xp_gain, uid))
+        
+    conn.commit()
+    conn.close()
+
 def save_single_word(uid, word, meaning, dhatu):
     conn = get_db_connection()
     c = conn.cursor()
+    today_str = str(datetime.date.today())
     c.execute('''
-        INSERT OR REPLACE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due)
-        VALUES (?, ?, ?, ?, "Learner", "Tomorrow")
-    ''', (uid, word, meaning, dhatu))
+        INSERT OR REPLACE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
+        VALUES (?, ?, ?, ?, "Learner", "Today", 1, 0, ?)
+    ''', (uid, word, meaning, dhatu, today_str))
     c.execute('UPDATE user_profile SET xp = xp + 15 WHERE id = ?', (uid,))
     conn.commit()
     conn.close()
@@ -156,13 +229,14 @@ def save_single_word(uid, word, meaning, dhatu):
 def save_vault_bulk(uid, word_list):
     conn = get_db_connection()
     c = conn.cursor()
+    today_str = str(datetime.date.today())
     added = 0
     for w in word_list:
         try:
             c.execute('''
-                INSERT OR IGNORE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due)
-                VALUES (?, ?, ?, ?, ?, "Tomorrow")
-            ''', (uid, w['word'], w['meaning'], w.get('dhatu', w['word']), w.get('level', 'Beginner')))
+                INSERT OR IGNORE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
+                VALUES (?, ?, ?, ?, ?, "Today", 1, 0, ?)
+            ''', (uid, w['word'], w['meaning'], w.get('dhatu', w['word']), w.get('level', 'Beginner'), today_str))
             if c.rowcount > 0:
                 added += 1
         except Exception:
@@ -182,7 +256,7 @@ def save_user_feedback(uid, teacher_name, user_prompt, response_text, fb_type, r
     conn.commit()
     conn.close()
 
-# --- CSS STYLING & TALKING AVATAR ANIMATION ---
+# --- CSS STYLING & FLASHCARD THEME ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -241,6 +315,42 @@ st.markdown("""
         0% { height: 3px; width: 12px; }
         50% { height: 9px; width: 16px; background: #5C0B0B; }
         100% { height: 5px; width: 18px; }
+    }
+    
+    /* SRS FLASHCARD STYLING */
+    .flashcard-box {
+        background: linear-gradient(145deg, #2D1B08 0%, #170E04 100%);
+        border: 2px solid #FF8F00;
+        border-radius: 18px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        margin: 15px auto;
+        max-width: 600px;
+    }
+    
+    .flashcard-word {
+        font-size: 2.3rem;
+        font-weight: 800;
+        color: #FFD54F;
+        margin-bottom: 8px;
+    }
+    
+    .flashcard-sub {
+        font-size: 1rem;
+        color: #BDBDBD;
+        margin-bottom: 16px;
+    }
+    
+    .flashcard-answer {
+        font-size: 1.4rem;
+        color: #81C784;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px dashed #4CAF50;
+        margin-top: 15px;
     }
     
     .sentence-card {
@@ -381,7 +491,7 @@ def split_into_sentences(text: str, max_limit=50):
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • 50-Sentence Batch Translator</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Interactive SRS Leitner Flashcards • 50-Sentence Batch Translator</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -433,6 +543,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "turn_count" not in st.session_state:
     st.session_state.turn_count = 0
+if "card_flipped" not in st.session_state:
+    st.session_state.card_flipped = False
+if "current_card_index" not in st.session_state:
+    st.session_state.current_card_index = 0
 
 FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', a high-performance interactive conversational Sanskrit tutor.
 Student Tier: {target_tier}.
@@ -452,12 +566,12 @@ Mandatory Response Format:
 """
 
 # --- 5 PRODUCTION TABS ---
-tab_roleplay, tab_bulk_vocab, tab_shiksha, tab_chandas, tab_trans = st.tabs([
+tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_chandas, tab_trans = st.tabs([
     "💬 1. Oral Roleplay",
-    "📚 2. Bulk PDF Vocabulary",
+    "🧠 2. SRS Flashcard Quiz (Active Recall)",
     "🎙️ 3. Śikṣā Phonetics",
     "🕉️ 4. Svara & Chandaḥ",
-    "🌐 5. Sentence-by-Sentence Batch Translator (50 Sentences)"
+    "🌐 5. Sentence Batch Translator (50 Sentences)"
 ])
 
 # =========================================================
@@ -592,35 +706,109 @@ with tab_roleplay:
                     st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 2: BULK PDF VOCABULARY EXTRACTOR
+# TAB 2: ACTIVE RECALL FLASHCARD DECK (SRS LEITNER SYSTEM)
 # =========================================================
-with tab_bulk_vocab:
-    st.markdown("#### 📚 Bulk PDF Sanskrit Vocabulary Ingestion Engine")
-    col_pdf1, col_pdf2 = st.columns([1, 1])
-    with col_pdf1:
-        uploaded_pdf = st.file_uploader("Upload Sanskrit PDF File:", type=["pdf"])
-        max_words = st.slider("Max Words to Extract:", min_value=10, max_value=50, value=25)
+with tab_srs_flashcards:
+    st.markdown("#### 🧠 Spaced Repetition (SRS) Active Recall Flashcard Deck")
+    st.caption("Cards schedule themselves scientifically using Leitner review intervals. Flip to test your memory and rate difficulty.")
+    
+    tab_fc_quiz, tab_fc_pdf, tab_fc_manage = st.tabs(["🎴 1. Practice Due Cards", "📄 2. Ingest from PDF", "🗄️ 3. Vault Database"])
+    
+    # 1. FLASHCARD QUIZ MODE
+    with tab_fc_quiz:
+        due_cards = get_due_flashcards(st.session_state.user_session_id)
         
-        if uploaded_pdf is not None and st.button("⚡ Extract & Save into Vault", use_container_width=True):
-            if not api_key:
-                st.warning("⚠️ Enter your Gemini API key in the sidebar.")
-                st.stop()
+        if not due_cards:
+            st.markdown("""
+            <div class="flashcard-box" style="border-color:#4CAF50;">
+                <div style="font-size:2.5rem; margin-bottom:10px;">🎉</div>
+                <h3 style="color:#81C784; margin:0 0 6px 0;">सर्वे शब्दाः अभ्यस्ताः! (All Caught Up!)</h3>
+                <p style="color:#DDD; font-size:0.95rem;">You have reviewed all due vocabulary for today. Add more words from a PDF or check back tomorrow!</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            total_due = len(due_cards)
+            idx = min(st.session_state.current_card_index, total_due - 1)
+            card = due_cards[idx]
             
-            with st.spinner("Extracting text and analyzing Sanskrit morphology..."):
-                try:
-                    pdf_reader = PdfReader(uploaded_pdf)
-                    extracted_text = ""
-                    for page_idx in range(min(8, len(pdf_reader.pages))):
-                        text = pdf_reader.pages[page_idx].extract_text()
-                        if text:
-                            extracted_text += text + "\n"
-                    
-                    if not extracted_text.strip():
-                        st.error("No readable text found in PDF.")
-                        st.stop()
-                    
-                    client = genai.Client(api_key=api_key)
-                    PROMPT_BULK = f"""Extract {max_words} unique Sanskrit words from this text.
+            # Top progress indicator
+            st.progress((idx + 1) / total_due, text=f"Reviewing Card {idx + 1} of {total_due} Due Today")
+            
+            # Card Display
+            st.markdown(f"""
+            <div class="flashcard-box">
+                <div style="font-size:0.8rem; color:#FF8F00; font-weight:700; text-transform:uppercase; letter-spacing:1px;">
+                    {card['level']} • Root: {card['dhatu']} • Reps: {card['reps']}
+                </div>
+                <div class="flashcard-word">{card['word']}</div>
+                <div class="flashcard-sub">What does this Sanskrit word mean?</div>
+                {'<div class="flashcard-answer">📖 <b>' + card['meaning'] + '</b></div>' if st.session_state.card_flipped else ''}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Pronounce card word
+            audio_b64 = get_speech_audio_b64(card['word'], t_info["tld"], t_info["slow"])
+            if audio_b64:
+                col_aud_l, col_aud_m, col_aud_r = st.columns([1, 2, 1])
+                with col_aud_m:
+                    st.audio(f"data:audio/mp3;base64,{audio_b64}", format="audio/mp3")
+
+            # Flip & Rate Buttons
+            col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+            
+            if not st.session_state.card_flipped:
+                if st.button("🔄 Flip Card to Reveal Answer / अर्थं पश्य", use_container_width=True):
+                    st.session_state.card_flipped = True
+                    st.rerun()
+            else:
+                with col_b1:
+                    if st.button("❌ Again / भूयः\n(Today • 0 XP)", use_container_width=True):
+                        update_srs_rating(card["id"], "again", card["interval"], card["reps"], st.session_state.user_session_id)
+                        st.session_state.card_flipped = False
+                        st.rerun()
+                with col_b2:
+                    if st.button("🟡 Hard / कठिनम्\n(+1 Day • 5 XP)", use_container_width=True):
+                        update_srs_rating(card["id"], "hard", card["interval"], card["reps"], st.session_state.user_session_id)
+                        st.session_state.card_flipped = False
+                        st.rerun()
+                with col_b3:
+                    if st.button("🟢 Good / सम्यक्\n(+3 Days • 10 XP)", use_container_width=True):
+                        update_srs_rating(card["id"], "good", card["interval"], card["reps"], st.session_state.user_session_id)
+                        st.session_state.card_flipped = False
+                        st.rerun()
+                with col_b4:
+                    if st.button("⭐ Easy / सरलम्\n(+7 Days • 20 XP)", use_container_width=True):
+                        update_srs_rating(card["id"], "easy", card["interval"], card["reps"], st.session_state.user_session_id)
+                        st.session_state.card_flipped = False
+                        st.rerun()
+
+    # 2. BULK PDF EXTRACTION INTO FLASHCARD DECK
+    with tab_fc_pdf:
+        col_pdf1, col_pdf2 = st.columns([1, 1])
+        with col_pdf1:
+            uploaded_pdf = st.file_uploader("Upload Sanskrit PDF File:", type=["pdf"], key="srs_pdf_up")
+            max_words = st.slider("Max Words to Ingest into Flashcard Deck:", min_value=10, max_value=50, value=25)
+            
+            if uploaded_pdf is not None and st.button("⚡ Extract & Ingest as New Flashcards", use_container_width=True):
+                if not api_key:
+                    st.warning("⚠️ Enter your Gemini API key in the sidebar.")
+                    st.stop()
+                
+                with st.spinner("Extracting text and analyzing morphology for flashcard deck..."):
+                    try:
+                        pdf_reader = PdfReader(uploaded_pdf)
+                        extracted_text = ""
+                        for page_idx in range(min(8, len(pdf_reader.pages))):
+                            text = pdf_reader.pages[page_idx].extract_text()
+                            if text:
+                                extracted_text += text + "\n"
+                        
+                        if not extracted_text.strip():
+                            st.error("No readable text found in PDF.")
+                            st.stop()
+                        
+                        client = genai.Client(api_key=api_key)
+                        PROMPT_BULK = f"""Extract {max_words} unique Sanskrit words from this text.
 Return a STRICT JSON array of objects with keys: "word", "meaning", "dhatu", "level".
 Example:
 [
@@ -629,39 +817,40 @@ Example:
 Text:
 {extracted_text[:4000]}
 """
-                    resp_text = generate_gemini_content(
-                        client=client,
-                        contents=[{"role": "user", "parts": [{"text": PROMPT_BULK}]}],
-                        config={"temperature": 0.1},
-                        is_json=True
-                    )
-                    
-                    parsed_vocab = json.loads(resp_text)
-                    added = save_vault_bulk(st.session_state.user_session_id, parsed_vocab)
-                    st.success(f"🎉 Successfully saved {added} words into your Database Vault!")
+                        resp_text = generate_gemini_content(
+                            client=client,
+                            contents=[{"role": "user", "parts": [{"text": PROMPT_BULK}]}],
+                            config={"temperature": 0.1},
+                            is_json=True
+                        )
+                        
+                        parsed_vocab = json.loads(resp_text)
+                        added = save_vault_bulk(st.session_state.user_session_id, parsed_vocab)
+                        st.success(f"🎉 Successfully created {added} new Flashcards in your SRS Deck! (+{added * 5} XP)")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error processing PDF: {str(e)}")
+
+        with col_pdf2:
+            st.markdown("##### ➕ **Or Add Flashcard Manually:**")
+            with st.form("manual_fc_add"):
+                vw = st.text_input("Sanskrit Word (पदम्):")
+                vm = st.text_input("Meaning (अर्थः):")
+                vd = st.text_input("Root / Stem (धातुः):")
+                if st.form_submit_button("Save to Flashcard Deck (+15 XP)") and vw and vm:
+                    save_single_word(st.session_state.user_session_id, vw, vm, vd if vd else vw)
+                    st.success(f"Saved '{vw}' as active flashcard!")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Error processing PDF: {str(e)}")
 
-        st.markdown("---")
-        with st.form("manual_add"):
-            st.markdown("##### ➕ **Add Single Word:**")
-            vw = st.text_input("Sanskrit Word (पदम्):")
-            vm = st.text_input("Meaning (अर्थः):")
-            vd = st.text_input("Root / Stem (धातुः):")
-            if st.form_submit_button("Save Word (+15 XP)") and vw and vm:
-                save_single_word(st.session_state.user_session_id, vw, vm, vd if vd else vw)
-                st.success(f"Saved '{vw}'!")
-                st.rerun()
-
-    with col_pdf2:
-        st.markdown("##### 🗄️ **Persistent Vocabulary Database Vault:**")
-        v_list = get_user_vault(st.session_state.user_session_id)
-        st.caption(f"Total Words in Vault: **{len(v_list)}**")
-        search_query = st.text_input("🔍 Search Vault:", placeholder="Filter words...")
-        filtered = [x for x in v_list if search_query.lower() in x['word'].lower() or search_query.lower() in x['meaning'].lower()] if search_query else v_list
-        for itm in filtered[:30]:
-            st.markdown(f"• **{itm['word']}** — *{itm['meaning']}* | Root: `{itm['dhatu']}` | ⏳ `{itm['review_due']}`")
+    # 3. VAULT DATABASE OVERVIEW
+    with tab_fc_manage:
+        all_words = get_all_vault_words(st.session_state.user_session_id)
+        st.caption(f"Total Words in Vault: **{len(all_words)}**")
+        search_q = st.text_input("🔍 Search Flashcard Vault:", placeholder="Filter words...")
+        filtered_w = [x for x in all_words if search_q.lower() in x['word'].lower() or search_q.lower() in x['meaning'].lower()] if search_q else all_words
+        
+        for itm in filtered_w[:40]:
+            st.markdown(f"• **{itm['word']}** — *{itm['meaning']}* | Root: `{itm['dhatu']}` | ⏳ Due: `{itm['review_due']}`")
 
 # =========================================================
 # TAB 3: ŚIKṢĀ PHONETICS
