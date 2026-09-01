@@ -85,31 +85,28 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     except Exception:
         pass
 
-# Robust API Caller with Safe Fallback Models and Adaptive Backoff
+# Robust API Caller utilizing gemini-3.6-flash with exponential backoff
 def call_gemini_safe(client, contents, system_instruction=""):
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
     last_err = None
-    
-    for m in models_to_try:
-        for attempt in range(3):
-            try:
-                config = {"temperature": 0.2}
-                if system_instruction:
-                    config["system_instruction"] = system_instruction
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=contents,
-                    config=config
-                )
-                return resp.text, None
-            except Exception as e:
-                last_err = str(e)
-                if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
-                    time.sleep(3 * (attempt + 1))
-                    continue
-                break
-                
-    return None, f"Request limit reached or API error: {last_err}"
+    for attempt in range(4):
+        try:
+            config = {"temperature": 0.2}
+            if system_instruction:
+                config["system_instruction"] = system_instruction
+            resp = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=contents,
+                config=config
+            )
+            return resp.text, None
+        except Exception as e:
+            last_err = str(e)
+            if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
+                time.sleep(3 * (attempt + 1))
+                continue
+            return None, last_err
+            
+    return None, f"Rate limit reached. Please wait a few seconds before retrying. ({last_err})"
 
 # --- SESSION STATES ---
 if "xp" not in st.session_state:
