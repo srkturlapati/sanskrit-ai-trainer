@@ -6,7 +6,7 @@ import sqlite3
 import datetime
 import base64
 
-# Enforce UTF-8 encoding across environments
+# Enforce UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -28,14 +28,14 @@ st.set_page_config(
 )
 
 ACTIVE_MODEL = "gemini-3.6-flash"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- DATABASE PERSISTENCE LAYER (SQLite) ---
-DB_FILE = "sambhāṣaṇa_master.db"
+DB_FILE = os.path.join(BASE_DIR, "sambhāṣaṇa_master.db")
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # Profile & Gamification
     c.execute('''
         CREATE TABLE IF NOT EXISTS user_profile (
             id INTEGER PRIMARY KEY,
@@ -46,7 +46,6 @@ def init_db():
             last_active TEXT
         )
     ''')
-    # Vocabulary Vault (SRS)
     c.execute('''
         CREATE TABLE IF NOT EXISTS vocab_vault (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,17 +56,17 @@ def init_db():
             review_due TEXT
         )
     ''')
-    # Analytics & Session Log
     c.execute('''
-        CREATE TABLE IF NOT EXISTS session_analytics (
+        CREATE TABLE IF NOT EXISTS feedback_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_date TEXT,
-            words_spoken INTEGER,
-            accuracy_score INTEGER
+            timestamp TEXT,
+            teacher_name TEXT,
+            user_prompt TEXT,
+            acharya_response TEXT,
+            feedback_type TEXT,
+            remark_text TEXT
         )
     ''')
-    
-    # Initialize default user
     c.execute('SELECT COUNT(*) FROM user_profile')
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO user_profile VALUES (1, "Sanskrit Learner", "Beginner", 1, 150, ?)', (str(datetime.date.today()),))
@@ -113,7 +112,25 @@ def save_word(word, meaning, dhatu):
     conn.commit()
     conn.close()
 
-# --- COMMERCIAL THEME & ANIMATED LIP-SYNC CSS ---
+def save_feedback(teacher_name, user_prompt, response_text, fb_type, remark):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO feedback_logs (timestamp, teacher_name, user_prompt, acharya_response, feedback_type, remark_text)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), teacher_name, user_prompt, response_text, fb_type, remark))
+    conn.commit()
+    conn.close()
+
+def get_all_feedbacks():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT id, timestamp, teacher_name, feedback_type, remark_text, acharya_response FROM feedback_logs ORDER BY id DESC')
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+# --- TALKING ROBOT & VEDIC CSS STYLING ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -128,26 +145,27 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* AVATAR TALKING & LIP-SYNC ANIMATION */
+    /* ROBO AVATAR & TALKING ANIMATION */
     .avatar-wrapper {
         position: relative;
-        width: 130px;
-        height: 130px;
-        margin: 0 auto 10px auto;
+        width: 120px;
+        height: 120px;
+        margin: 0 auto;
     }
     
     .avatar-base {
-        width: 130px;
-        height: 130px;
+        width: 120px;
+        height: 120px;
         border-radius: 50%;
         object-fit: cover;
         border: 4px solid #FF8F00;
         box-shadow: 0 0 20px rgba(255, 143, 0, 0.4);
+        transition: all 0.3s ease;
     }
     
     .talking-lip {
         position: absolute;
-        bottom: 24px;
+        bottom: 22px;
         left: 50%;
         transform: translateX(-50%);
         width: 22px;
@@ -159,13 +177,14 @@ st.markdown("""
     }
     
     .is-speaking .talking-lip {
-        opacity: 0.9;
+        opacity: 0.95;
         animation: mouthTalk 0.28s infinite alternate ease-in-out;
     }
     
     .is-speaking .avatar-base {
-        box-shadow: 0 0 28px rgba(255, 111, 0, 0.85);
-        transform: scale(1.02);
+        box-shadow: 0 0 30px rgba(255, 111, 0, 0.9);
+        transform: scale(1.04);
+        border-color: #FFD54F;
     }
 
     @keyframes mouthTalk {
@@ -174,22 +193,37 @@ st.markdown("""
         100% { height: 8px; width: 24px; border-radius: 50%; }
     }
 
-    .metric-pill {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 143, 0, 0.25);
-        border-radius: 12px;
-        padding: 10px;
+    /* Active Voice Prompter Box */
+    .voice-prompt-box {
+        background: rgba(255, 111, 0, 0.08);
+        border: 2px dashed #FF8F00;
+        border-radius: 14px;
+        padding: 16px;
+        margin-top: 20px;
         text-align: center;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(76, 175, 80, 0.15);
+        color: #81C784;
+        border: 1px solid #4CAF50;
+        margin-bottom: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper: Load .jpeg, .jpg, or .png automatically from assets/
+# Helper: Load images from assets/ with absolute path
 def get_avatar_img(base_name, fallback_url):
     extensions = [".jpeg", ".jpg", ".png", ".JPEG", ".JPG", ".PNG"]
+    assets_dir = os.path.join(BASE_DIR, "assets")
     for ext in extensions:
-        local_p = os.path.join("assets", base_name + ext)
-        if os.path.exists(local_p):
+        local_p = os.path.join(assets_dir, base_name + ext)
+        if os.path.isfile(local_p):
             try:
                 mime = "image/jpeg" if ext.lower() in [".jpeg", ".jpg"] else "image/png"
                 with open(local_p, "rb") as img_f:
@@ -206,7 +240,7 @@ child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.g
 TEACHERS = {
     "Male Guru (आचार्यः वसिष्ठः)": {
         "title": "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)",
-        "desc": "Traditional Classical Guru • Deep Pāṇinian Master",
+        "desc": "Classical Guru • Deep Pāṇinian Master",
         "img": male_src,
         "status": male_status,
         "tld": "co.in",
@@ -230,7 +264,6 @@ TEACHERS = {
     }
 }
 
-# Synchronized speech playback + Lip-Sync trigger
 def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
     clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
     if not clean_text:
@@ -245,14 +278,15 @@ def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
         
         elem_id = f"audio_{int(time.time()*1000)}"
         st.markdown(f"""
-        <div style="display:flex; align-items:center; gap:16px; margin: 12px 0;">
+        <div style="display:flex; align-items:center; gap:16px; margin: 12px 0; background:rgba(255,255,255,0.03); padding:12px; border-radius:14px; border:1px solid rgba(255,143,0,0.2);">
             <div class="avatar-wrapper" id="wrap_{elem_id}">
                 <img src="{cfg['img']}" class="avatar-base"/>
                 <div class="talking-lip"></div>
             </div>
             <div style="flex-grow:1;">
-                <div style="font-weight:700; color:#FF8F00; font-size:1rem;">{cfg['title']} Speaking...</div>
-                <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:38px; margin-top:6px;">
+                <div class="status-badge">🟢 AI Tutor Speaking (वदति)</div>
+                <div style="font-weight:700; color:#FF8F00; font-size:1.05rem;">{cfg['title']}</div>
+                <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:36px; margin-top:6px;">
                     <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
                 </audio>
             </div>
@@ -272,11 +306,11 @@ def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
     except Exception:
         pass
 
-# --- APP HERO ---
+# --- HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Pro (सम्भाषण-प्रशिक्षकः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.9;">Commercial Spoken Sanskrit Engine • Ultra-Low Latency • Talking Lip-Sync Avatars</p>
+    <p style="margin:4px 0 0 0; opacity:0.9;">Interactive Voice-to-Voice AI Sanskrit Tutor • Continuous Microphone Loop • Talking Avatars</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -315,43 +349,48 @@ with st.sidebar:
     st.markdown("### 🏆 **Student Database Profile**")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
-        st.markdown(f"""<div class="metric-pill"><div style="font-size:1.3rem; font-weight:700; color:#FF8F00;">🔥 {u_strk}</div><div style="font-size:0.7rem;">DAY STREAK</div></div>""", unsafe_allow_html=True)
+        st.metric("🔥 Day Streak", f"{u_strk} Days")
     with col_p2:
-        st.markdown(f"""<div class="metric-pill"><div style="font-size:1.3rem; font-weight:700; color:#FF8F00;">⭐ {u_xp}</div><div style="font-size:0.7rem;">SAVED XP</div></div>""", unsafe_allow_html=True)
+        st.metric("⭐ Saved XP", f"{u_xp} XP")
     
-    if st.button("🔄 Reset Conversation History", use_container_width=True):
+    if st.button("🔄 Start New Conversation", use_container_width=True):
         st.session_state.chat_history = []
+        st.session_state.turn_count = 0
         st.rerun()
 
+# Dynamic Session State
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "turn_count" not in st.session_state:
+    st.session_state.turn_count = 0
 
-FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', an instant Sanskrit dialogue tutor.
+FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', an interactive conversational Sanskrit tutor speaking with the student.
 Student Tier: {target_tier}.
 
-CRITICAL: Respond concisely within 3-4 sentences maximum for ultra-fast oral conversation.
+CRITICAL: Respond concisely within 2-4 sentences in spoken Sarala Samskritam. Always conclude with a conversational question to invite the student to speak next.
 Format ALWAYS:
-[संस्कृतम्]: <Simple Sanskrit dialogue>
+[संस्कृतम्]: <Simple spoken Sanskrit dialogue>
 [IAST]: <Romanized transliteration>
 [English]: <English meaning>
 [✨ Say It Better]: <One short idiomatic Sanskrit upgrade>
-[मार्गदर्शनम्] (Only if error occurred):
+[मार्गदर्शनम्] (Only if student made an error):
 - 💡 Correction & rule
 """
 
-tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
-    "💬 1. Ultra-Fast Oral Roleplay",
-    "🎙️ 2. Śikṣā Phonetic Coach",
-    "🕉️ 3. Svara & Chandaḥ Metre",
-    "🧠 4. Persistent SRS Vault",
-    "🌐 5. Universal Translator"
+tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans, tab_feedback = st.tabs([
+    "💬 1. Continuous Oral Roleplay",
+    "🎙️ 2. Śikṣā Coach",
+    "🕉️ 3. Svara & Chandaḥ",
+    "🧠 4. SRS Vault",
+    "🌐 5. Translator",
+    "📝 6. Remarks Log (अभिप्रायः)"
 ])
 
 # =========================================================
-# TAB 1: LOW-LATENCY ORAL ROLEPLAY
+# TAB 1: CONTINUOUS ORAL ROLEPLAY
 # =========================================================
 with tab_roleplay:
-    st.markdown("#### 💬 Situational Real-Life Immersion (सजीव-सम्भाषणम्)")
+    st.markdown("#### 💬 Live Conversation with AI Tutor (सजीव-सम्भाषणम्)")
     
     scenario = st.selectbox(
         "Select Scenario / प्रसङ्गः:",
@@ -364,17 +403,47 @@ with tab_roleplay:
         ]
     )
     
-    for msg in st.session_state.chat_history:
+    # 1. Display Chat History with Talking Robo Avatar & Remarks Under Every Response
+    for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
-            if role == "assistant" and "[संस्कृतम्]:" in msg["content"]:
-                sanskrit_text = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-                render_talking_avatar(sanskrit_text, selected_teacher, auto_play=False)
+            if role == "assistant":
+                if "[संस्कृतम्]:" in msg["content"]:
+                    sanskrit_text = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                    render_talking_avatar(sanskrit_text, selected_teacher, auto_play=False)
+                
+                # Inline Remark / Feedback Expander
+                with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
+                    fb_type = st.selectbox(
+                        "Remark Type:",
+                        [
+                            "✅ Correct & Auspicious (उत्कृष्टम्)",
+                            "⚠️ Grammar / Sūtra Error (व्याकरण-दोषः)",
+                            "⚠️ Inaccurate Translation (अनुवाद-दोषः)",
+                            "⚠️ Sandhi / Spelling Mistake (सन्धि/वर्ण-दोषः)",
+                            "💡 Suggestion for Improvement (सुझावः)"
+                        ],
+                        key=f"fb_type_{idx}"
+                    )
+                    user_remark = st.text_area("Your Note / Correction:", key=f"remark_{idx}", placeholder="e.g. In sentence 1, 'गच्छामि' is better...")
+                    if st.button("💾 Save Remark", key=f"btn_fb_{idx}"):
+                        prior_user_msg = st.session_state.chat_history[idx - 1]["content"] if idx > 0 else "N/A"
+                        save_feedback(selected_teacher, prior_user_msg, msg["content"], fb_type, user_remark)
+                        st.success("✅ Remark saved into SQLite database! (View in Tab 6)")
 
-    st.markdown("##### 🎙️ **Speak to Acharya (Oral Microphone):**")
-    user_audio = st.audio_input("Record voice:")
+    # 2. ALWAYS-VISIBLE CONTINUOUS MICROPHONE PROMPTER
+    st.markdown("""
+    <div class="voice-prompt-box">
+        <h4 style="margin:0; color:#FF8F00;">🎙️ अधुना भवान् वदतु (Your Turn to Speak)</h4>
+        <p style="margin:4px 0 10px 0; opacity:0.85; font-size:0.9rem;">Press record, speak your sentence or question to Acharya, and tap stop.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Dynamic key ensures microphone is fresh and ready on every conversational turn
+    user_audio = st.audio_input("Record voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
 
+    # Process Audio Input
     if user_audio is not None:
         if not api_key:
             st.warning("⚠️ Enter your Gemini API key in the sidebar.")
@@ -383,12 +452,12 @@ with tab_roleplay:
         client = genai.Client(api_key=api_key)
         audio_bytes = user_audio.getvalue()
         
-        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Oral Question Submitted]*"})
+        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Question Submitted]*"})
         with st.chat_message("user"):
             st.audio(user_audio, format="audio/wav")
 
         with st.chat_message("assistant"):
-            with st.spinner("आचार्यः चिन्तयति..."):
+            with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
                 t_start = time.time()
                 try:
                     resp = client.models.generate_content(
@@ -397,7 +466,7 @@ with tab_roleplay:
                             "role": "user",
                             "parts": [
                                 {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen to student audio and reply immediately."}
+                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen to student speech and reply directly in character."}
                             ]
                         }],
                         config={"temperature": 0.2, "max_output_tokens": 500}
@@ -413,11 +482,14 @@ with tab_roleplay:
                         render_talking_avatar(sanskrit_text, selected_teacher, auto_play=True)
                     
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
+                    st.session_state.turn_count += 1
                     update_xp(10)
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    if text_input := st.chat_input("Or type (e.g. mama nama, katham asti...):"):
+    # Text Input as alternative
+    if text_input := st.chat_input("Or type here (e.g. mama nama, katham asti...):"):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
             st.stop()
@@ -452,7 +524,9 @@ with tab_roleplay:
                         render_talking_avatar(sanskrit_text, selected_teacher, auto_play=True)
                         
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
+                    st.session_state.turn_count += 1
                     update_xp(5)
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
@@ -476,7 +550,7 @@ with tab_shiksha:
         render_talking_avatar(phrase, selected_teacher, auto_play=False)
     with col_s2:
         st.markdown("##### 🎙️ **2. Record Your Voice:**")
-        rec_sh = st.audio_input("Chant the phrase:")
+        rec_sh = st.audio_input("Chant the phrase:", key="shiksha_mic")
 
     if rec_sh is not None:
         if not api_key:
@@ -582,3 +656,20 @@ with tab_trans:
                     render_talking_avatar(s_line, selected_teacher, auto_play=False)
             except Exception as e:
                 st.error(f"Error: {str(e)}")
+
+# =========================================================
+# TAB 6: REMARKS & FEEDBACK LOG ARCHIVE
+# =========================================================
+with tab_feedback:
+    st.markdown("#### 📝 अभिप्राय-पञ्जिका (Teacher & Student Remarks Archive)")
+    st.caption("All reported errors, corrections, and notes are permanently stored here in the database.")
+    
+    logs = get_all_feedbacks()
+    if not logs:
+        st.info("No remarks recorded yet. You can submit remarks directly under any Acharya response in Tab 1.")
+    else:
+        for f_id, f_time, f_teacher, f_type, f_rem, f_resp in logs:
+            with st.expander(f"📌 [{f_time}] {f_type} — {f_teacher}"):
+                st.markdown(f"**Remark / Note:**\n{f_rem if f_rem else '*(No written note provided)*'}")
+                st.markdown("---")
+                st.markdown(f"**Acharya Response Inspected:**\n```\n{f_resp}\n```")
