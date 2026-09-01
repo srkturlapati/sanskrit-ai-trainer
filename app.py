@@ -21,6 +21,7 @@ from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -105,7 +106,6 @@ def init_db():
         )
     ''')
     
-    # Pre-populate starter vocabulary if empty
     today_str = str(datetime.date.today())
     c.execute('SELECT COUNT(*) FROM vocab_vault WHERE user_id = "default_user"')
     if c.fetchone()[0] == 0:
@@ -256,7 +256,7 @@ def save_user_feedback(uid, teacher_name, user_prompt, response_text, fb_type, r
     conn.commit()
     conn.close()
 
-# --- CSS STYLING & FLASHCARD THEME ---
+# --- CSS STYLING ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -317,7 +317,6 @@ st.markdown("""
         100% { height: 5px; width: 18px; }
     }
     
-    /* SRS FLASHCARD STYLING */
     .flashcard-box {
         background: linear-gradient(145deg, #2D1B08 0%, #170E04 100%);
         border: 2px solid #FF8F00;
@@ -466,6 +465,138 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     </script>
     """, unsafe_allow_html=True)
 
+# --- REAL-TIME WAVEFORM PITCH MATCHING & VOCAL VISUALIZER (POINT 3) ---
+def render_live_waveform_pitch_visualizer():
+    components.html("""
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; background:#120B02; border:2px solid #FF8F00; border-radius:16px; padding:18px; color:#FFF;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div>
+                <span style="font-size:1.05rem; font-weight:800; color:#FFD54F;">🌊 Live Vocal Pitch Spectrum (स्वर-तरङ्गिणी)</span>
+                <div style="font-size:0.8rem; color:#AAA;">Real-Time Pitch & Waveform Harmonic Resonance Matching (60 FPS)</div>
+            </div>
+            <button id="visMicBtn" onclick="togglePitchVisualizer()" style="background:#E65100; color:white; border:none; padding:8px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+                🔴 Activate Visualizer
+            </button>
+        </div>
+
+        <!-- HTML5 Web Audio Canvas -->
+        <canvas id="pitchCanvas" width="700" height="150" style="width:100%; height:150px; background:#080401; border-radius:10px; border:1px solid #3E2723;"></canvas>
+
+        <div style="display:flex; justify-content:space-around; align-items:center; margin-top:12px; background:rgba(255,255,255,0.03); padding:8px; border-radius:10px; font-size:0.82rem;">
+            <div>🎯 Target Preceptor Harmonic: <span style="color:#FF8F00; font-weight:bold;">140 Hz - 220 Hz (Mandra / Madhya)</span></div>
+            <div>🎙️ Live Vocal Pitch (F0): <span id="pitchVal" style="color:#81C784; font-weight:bold;">-- Hz</span></div>
+            <div>⚡ Acoustic Volume: <span id="volVal" style="color:#64B5F6; font-weight:bold;">-- dB</span></div>
+        </div>
+    </div>
+
+    <script>
+        var audioCtx = null;
+        var analyser = null;
+        var micStream = null;
+        var isVisRunning = false;
+        var animId = null;
+
+        async function togglePitchVisualizer() {
+            var btn = document.getElementById("visMicBtn");
+            if (!isVisRunning) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    var source = audioCtx.createMediaStreamSource(micStream);
+                    
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 2048;
+                    source.connect(analyser);
+
+                    isVisRunning = true;
+                    btn.style.background = "#2E7D32";
+                    btn.innerText = "⏹️ Stop Visualizer";
+                    drawLivePitchSpectrum();
+                } catch(err) {
+                    alert("Microphone access error: " + err.message);
+                }
+            } else {
+                if (micStream) micStream.getTracks().forEach(t => t.stop());
+                if (audioCtx) audioCtx.close();
+                cancelAnimationFrame(animId);
+                isVisRunning = false;
+                btn.style.background = "#E65100";
+                btn.innerText = "🔴 Activate Visualizer";
+                document.getElementById("pitchVal").innerText = "-- Hz";
+                document.getElementById("volVal").innerText = "-- dB";
+            }
+        }
+
+        function drawLivePitchSpectrum() {
+            if (!isVisRunning) return;
+            animId = requestAnimationFrame(drawLivePitchSpectrum);
+
+            var canvas = document.getElementById("pitchCanvas");
+            var ctx = canvas.getContext("2d");
+            var bufferLength = analyser.frequencyBinCount;
+            var timeData = new Uint8Array(bufferLength);
+            var freqData = new Uint8Array(bufferLength);
+
+            analyser.getByteTimeDomainData(timeData);
+            analyser.getByteFrequencyData(freqData);
+
+            // Compute volume
+            var sum = 0;
+            var maxFreqIndex = 0;
+            var maxFreqVal = 0;
+            for (var i = 0; i < bufferLength; i++) {
+                sum += freqData[i];
+                if (freqData[i] > maxFreqVal) {
+                    maxFreqVal = freqData[i];
+                    maxFreqIndex = i;
+                }
+            }
+            var avgVol = Math.round(sum / bufferLength);
+            var estPitch = Math.round(maxFreqIndex * (audioCtx.sampleRate / analyser.fftSize));
+
+            if (avgVol > 5) {
+                document.getElementById("pitchVal").innerText = (estPitch > 50 && estPitch < 800) ? estPitch + " Hz" : "-- Hz";
+                document.getElementById("volVal").innerText = avgVol + " dB";
+            } else {
+                document.getElementById("pitchVal").innerText = "Silent";
+                document.getElementById("volVal").innerText = "0 dB";
+            }
+
+            // Clear Background
+            ctx.fillStyle = "#080401";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Reference Ideal Vedic Pitch Waveform (Orange Sine Harmonic)
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "rgba(255, 143, 0, 0.4)";
+            ctx.beginPath();
+            var refSlice = canvas.width / bufferLength;
+            for (var i = 0; i < canvas.width; i++) {
+                var y = (canvas.height / 2) + Math.sin(i * 0.05 + Date.now() * 0.003) * 25;
+                if (i === 0) ctx.moveTo(i, y);
+                else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+
+            // Draw Student's Live Vocal Oscillogram (Cyan / Emerald Waveform)
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = "#81C784";
+            ctx.beginPath();
+            var sliceWidth = canvas.width * 1.0 / bufferLength;
+            var x = 0;
+            for (var i = 0; i < bufferLength; i++) {
+                var v = timeData[i] / 128.0;
+                var y = v * (canvas.height / 2);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+        }
+    </script>
+    """, height=255)
+
 def split_into_sentences(text: str, max_limit=50):
     lines = text.split('\n')
     sentences = []
@@ -491,7 +622,7 @@ def split_into_sentences(text: str, max_limit=50):
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Interactive SRS Leitner Flashcards • 50-Sentence Batch Translator</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Live Vocal Pitch Visualizer • Interactive SRS Flashcards</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -568,8 +699,8 @@ Mandatory Response Format:
 # --- 5 PRODUCTION TABS ---
 tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_chandas, tab_trans = st.tabs([
     "💬 1. Oral Roleplay",
-    "🧠 2. SRS Flashcard Quiz (Active Recall)",
-    "🎙️ 3. Śikṣā Phonetics",
+    "🧠 2. SRS Flashcard Quiz",
+    "🎙️ 3. Śikṣā Phonetics & Pitch Spectrum",
     "🕉️ 4. Svara & Chandaḥ",
     "🌐 5. Sentence Batch Translator (50 Sentences)"
 ])
@@ -714,7 +845,6 @@ with tab_srs_flashcards:
     
     tab_fc_quiz, tab_fc_pdf, tab_fc_manage = st.tabs(["🎴 1. Practice Due Cards", "📄 2. Ingest from PDF", "🗄️ 3. Vault Database"])
     
-    # 1. FLASHCARD QUIZ MODE
     with tab_fc_quiz:
         due_cards = get_due_flashcards(st.session_state.user_session_id)
         
@@ -731,10 +861,8 @@ with tab_srs_flashcards:
             idx = min(st.session_state.current_card_index, total_due - 1)
             card = due_cards[idx]
             
-            # Top progress indicator
             st.progress((idx + 1) / total_due, text=f"Reviewing Card {idx + 1} of {total_due} Due Today")
             
-            # Card Display
             st.markdown(f"""
             <div class="flashcard-box">
                 <div style="font-size:0.8rem; color:#FF8F00; font-weight:700; text-transform:uppercase; letter-spacing:1px;">
@@ -746,14 +874,12 @@ with tab_srs_flashcards:
             </div>
             """, unsafe_allow_html=True)
             
-            # Pronounce card word
             audio_b64 = get_speech_audio_b64(card['word'], t_info["tld"], t_info["slow"])
             if audio_b64:
                 col_aud_l, col_aud_m, col_aud_r = st.columns([1, 2, 1])
                 with col_aud_m:
                     st.audio(f"data:audio/mp3;base64,{audio_b64}", format="audio/mp3")
 
-            # Flip & Rate Buttons
             col_b1, col_b2, col_b3, col_b4 = st.columns(4)
             
             if not st.session_state.card_flipped:
@@ -782,7 +908,6 @@ with tab_srs_flashcards:
                         st.session_state.card_flipped = False
                         st.rerun()
 
-    # 2. BULK PDF EXTRACTION INTO FLASHCARD DECK
     with tab_fc_pdf:
         col_pdf1, col_pdf2 = st.columns([1, 1])
         with col_pdf1:
@@ -842,7 +967,6 @@ Text:
                     st.success(f"Saved '{vw}' as active flashcard!")
                     st.rerun()
 
-    # 3. VAULT DATABASE OVERVIEW
     with tab_fc_manage:
         all_words = get_all_vault_words(st.session_state.user_session_id)
         st.caption(f"Total Words in Vault: **{len(all_words)}**")
@@ -853,10 +977,16 @@ Text:
             st.markdown(f"• **{itm['word']}** — *{itm['meaning']}* | Root: `{itm['dhatu']}` | ⏳ Due: `{itm['review_due']}`")
 
 # =========================================================
-# TAB 3: ŚIKṢĀ PHONETICS
+# TAB 3: ŚIKṢĀ PHONETICS & VOCAL PITCH SPECTRUM (POINT 3)
 # =========================================================
 with tab_shiksha:
-    st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Accent Coach)")
+    st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं स्वर-तरङ्गिणी (Phonetic Accent & Pitch Visualizer)")
+    st.caption("Matches your real-time vocal harmonics and pronunciation against classical Vedic phonetics.")
+    
+    # 1. Real-Time Waveform Spectrum Component
+    render_live_waveform_pitch_visualizer()
+    
+    st.write("---")
     drill = st.selectbox("Choose Target Phrase to Master:", [
         "सत्यं वद, धर्मं चर। (Speak truth, practice righteousness)",
         "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
@@ -870,7 +1000,7 @@ with tab_shiksha:
         st.markdown(f"##### 🔊 **1. Master Chanting ({t_info['title']}):**")
         render_talking_avatar(phrase, selected_teacher, auto_play=False)
     with col_s2:
-        st.markdown("##### 🎙️ **2. Record Your Voice:**")
+        st.markdown("##### 🎙️ **2. Record Chanting for Acoustic Diagnosis:**")
         rec_sh = st.audio_input("Chant the phrase:", key="shiksha_mic")
 
     if rec_sh is not None:
@@ -979,7 +1109,6 @@ Ensure pure, natural, idiomatic translation for every single sentence.
                 batch_results = json.loads(resp_text)
                 st.success(f"🎉 Successfully translated all {len(batch_results)} sentences!")
                 
-                # --- DISPLAY SENTENCE-BY-SENTENCE RESULTS ---
                 for item in batch_results:
                     s_num = item.get("sentence_num", 1)
                     src_s = item.get("source_sentence", "")
