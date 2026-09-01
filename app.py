@@ -162,11 +162,11 @@ def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> s
 
 def render_autotype_mic(target_input_hint=""):
     components.html(f"""
-    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, #2D1400 0%, #170A00 100%); padding:10px 16px; border-radius:12px; border:1.5px solid #FF8F00; margin: 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:#E65100; color:white; border:none; padding:7px 18px; border-radius:20px; font-weight:700; cursor:pointer; font-size:0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, #2D1400 0%, #170A00 100%); padding:10px 16px; border-radius:12px; border:1.5px solid #FF8F00; margin: 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:linear-gradient(135deg, #E65100, #FF6D00); color:white; border:none; padding:7px 18px; border-radius:20px; font-weight:700; cursor:pointer; font-size:0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
             🎙️ Auto-Type Voice
         </button>
-        <span id="autoTypeStatus" style="font-size:0.82rem; color:#FFD54F; font-weight:500;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
+        <span id="autoTypeStatus" style="font-size:0.82rem; color:#FFD54F; font-weight:600;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
     </div>
     <script>
         var recognition = null;
@@ -196,7 +196,7 @@ def render_autotype_mic(target_input_hint=""):
             }};
             recognition.onend = function() {{
                 isRec = false;
-                document.getElementById('autoTypeBtn').style.background = '#E65100';
+                document.getElementById('autoTypeBtn').style.background = 'linear-gradient(135deg, #E65100, #FF6D00)';
                 document.getElementById('autoTypeBtn').innerText = '🎙️ Auto-Type Voice';
             }};
         }}
@@ -208,141 +208,191 @@ def render_autotype_mic(target_input_hint=""):
     </script>
     """, height=58)
 
-# --- COMPLETE GLOBAL CSS REDESIGN ---
+# --- MODERN GAMIFICATION THEME (MULTI-TAB COLOR MATRICES) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
     html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     
     /* Hero Header */
     .hero-banner {
-        background: linear-gradient(135deg, #BF360C 0%, #E65100 50%, #1A0A00 100%);
-        border-radius: 16px;
-        padding: 18px 24px;
+        background: linear-gradient(135deg, #BF360C 0%, #E65100 40%, #210C00 100%);
+        border-radius: 18px;
+        padding: 20px 26px;
         color: #FFFFFF;
-        box-shadow: 0 8px 24px rgba(230, 81, 0, 0.35);
-        margin-bottom: 18px;
-        border: 1px solid rgba(255, 143, 0, 0.4);
-    }
-    
-    /* General Game Cards */
-    .game-card {
-        background: #140A02 !important;
-        border: 1.5px solid #FF8F00 !important;
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 14px;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 10px 30px rgba(230, 81, 0, 0.4);
+        margin-bottom: 20px;
+        border: 2px solid #FF8F00;
     }
 
-    /* Structured Response Cards (Tab 1 Roleplay) */
+    /* TAB 1: SAFFRON & FLAME THEME */
+    .theme-tab1 {
+        background: linear-gradient(145deg, #2A1202 0%, #150900 100%) !important;
+        border: 2px solid #FF8F00 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(255, 111, 0, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab1 h3, .theme-tab1 h4 { color: #FFB300 !important; font-weight: 800; }
+
+    /* TAB 2: EMERALD & JADE THEME */
+    .theme-tab2 {
+        background: linear-gradient(145deg, #022415 0%, #00120A 100%) !important;
+        border: 2px solid #00E676 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(0, 230, 118, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab2 h3, .theme-tab2 h4 { color: #69F0AE !important; font-weight: 800; }
+
+    /* TAB 3: AMETHYST & PURPLE THEME */
+    .theme-tab3 {
+        background: linear-gradient(145deg, #240033 0%, #12001A 100%) !important;
+        border: 2px solid #D500F9 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(213, 0, 249, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab3 h3, .theme-tab3 h4 { color: #EA80FC !important; font-weight: 800; }
+
+    /* TAB 4: RUBY & CRIMSON THEME */
+    .theme-tab4 {
+        background: linear-gradient(145deg, #33000E 0%, #170006 100%) !important;
+        border: 2px solid #FF1744 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(255, 23, 68, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab4 h3, .theme-tab4 h4 { color: #FF80AB !important; font-weight: 800; }
+
+    /* TAB 5: SAPPHIRE & CELESTIAL BLUE THEME */
+    .theme-tab5 {
+        background: linear-gradient(145deg, #001E3D 0%, #000F1F 100%) !important;
+        border: 2px solid #00B0FF !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(0, 176, 255, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab5 h3, .theme-tab5 h4 { color: #80D8FF !important; font-weight: 800; }
+
+    /* TAB 6: SURYA GOLD & AMBER THEME */
+    .theme-tab6 {
+        background: linear-gradient(145deg, #332600 0%, #1A1300 100%) !important;
+        border: 2px solid #FFD600 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(255, 214, 0, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab6 h3, .theme-tab6 h4 { color: #FFE57F !important; font-weight: 800; }
+
+    /* TAB 7: TEMPLE TEAL & SANDALWOOD THEME */
+    .theme-tab7 {
+        background: linear-gradient(145deg, #002B33 0%, #00141A 100%) !important;
+        border: 2px solid #00E5FF !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 20px rgba(0, 229, 255, 0.25);
+        color: #FFFFFF !important;
+    }
+    .theme-tab7 h3, .theme-tab7 h4 { color: #84FFFF !important; font-weight: 800; }
+
+    /* Option Selection Cards (Dropdowns & Radios) */
+    .option-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+    }
+    .option-title {
+        font-weight: 800;
+        font-size: 1rem;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* Structured Response Cards (Roleplay) */
     .roleplay-card {
-        background: #120A03 !important;
-        border: 1.5px solid #FF8F00 !important;
+        background: #140A02 !important;
+        border: 2px solid #FF8F00 !important;
         border-radius: 14px;
         padding: 18px 22px;
         margin: 12px 0;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     }
     .roleplay-sanskrit {
-        font-size: 1.35rem;
+        font-size: 1.4rem;
         font-weight: 800;
         color: #FFE082 !important;
         line-height: 1.5;
         margin-bottom: 10px;
-    }
-    .roleplay-iast {
-        font-size: 0.95rem;
-        color: #80D8FF !important;
-        margin-bottom: 8px;
-        font-style: italic;
-    }
-    .roleplay-english {
-        font-size: 1rem;
-        color: #A5D6A7 !important;
-        font-weight: 600;
-        margin-bottom: 10px;
-    }
-    .roleplay-tip {
-        background: rgba(255, 255, 255, 0.06);
-        border-left: 4px solid #CE93D8;
-        padding: 8px 14px;
-        border-radius: 0 8px 8px 0;
-        font-size: 0.88rem;
-        color: #F3E5F5 !important;
-    }
-
-    /* Translation Dissection Cards (Tab 2) */
-    .trans-card {
-        background: #0A140E !important;
-        border: 1.5px solid #2E7D32 !important;
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-    }
-    .trans-sanskrit {
-        font-size: 1.35rem;
-        font-weight: 800;
-        color: #FFE082 !important;
-        margin: 6px 0;
-    }
-    .trans-pada {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px dashed #81C784;
-        padding: 8px 14px;
-        border-radius: 8px;
-        color: #C8E6C9 !important;
-        font-size: 0.92rem;
-        margin-top: 8px;
     }
 
     /* High-Contrast Solid Answer & Explanation Box */
     .answer-box {
         background: #081C10 !important;
         border: 2px solid #2E7D32 !important;
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 18px 22px;
-        margin-top: 14px;
+        margin-top: 16px;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     }
     .answer-header {
         color: #81C784 !important;
-        font-size: 1.15rem;
+        font-size: 1.2rem;
         font-weight: 800;
         margin: 0 0 10px 0;
     }
     .answer-badge {
         background: #FFD54F !important;
         color: #000000 !important;
-        font-weight: 800 !important;
-        padding: 3px 10px;
+        font-weight: 900 !important;
+        padding: 4px 12px;
         border-radius: 6px;
         display: inline-block;
-        font-size: 1rem;
+        font-size: 1.05rem;
     }
     .explanation-callout {
         background: rgba(255, 255, 255, 0.08) !important;
         border-left: 4px solid #81C784 !important;
-        padding: 10px 14px;
-        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        border-radius: 0 10px 10px 0;
         margin-top: 10px;
-        font-size: 0.95rem;
+        font-size: 0.98rem;
         line-height: 1.6;
         color: #FFFFFF !important;
     }
 
-    /* Mottos & Badges */
-    .motto-badge {
-        background: linear-gradient(145deg, #2D1400, #140800);
-        border-left: 5px solid #FF8F00;
-        border-radius: 10px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        border: 1px solid rgba(255, 143, 0, 0.25);
+    /* Custom Buttons per theme */
+    div.stButton > button {
+        border-radius: 24px !important;
+        font-weight: 800 !important;
+        font-size: 1rem !important;
+        padding: 10px 24px !important;
+        transition: all 0.3s ease !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.3) !important;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -370,13 +420,13 @@ def render_highlighted_roleplay_card(content_text):
 
     st.markdown(f"""
     <div class="roleplay-card">
-        <div style="font-size:0.8rem; font-weight:800; color:#FF8F00; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">
+        <div style="font-size:0.85rem; font-weight:800; color:#FF8F00; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">
             🚩 संस्कृत-सम्भाषणम् (Spoken Sanskrit)
         </div>
         <div class="roleplay-sanskrit">{sanskrit}</div>
-        {f'<div class="roleplay-iast"><b>IAST:</b> {iast}</div>' if iast else ''}
-        {f'<div class="roleplay-english"><b>अर्थः (Meaning):</b> {english}</div>' if english else ''}
-        {f'<div class="roleplay-tip">💡 <b>Say It Better / सुभाषितम्:</b> {tip}</div>' if tip else ''}
+        {f'<div style="color:#80D8FF; font-size:0.95rem; font-style:italic; margin-bottom:6px;"><b>IAST:</b> {iast}</div>' if iast else ''}
+        {f'<div style="color:#A5D6A7; font-size:1rem; font-weight:600; margin-bottom:8px;"><b>अर्थः (Meaning):</b> {english}</div>' if english else ''}
+        {f'<div style="background:rgba(255,255,255,0.06); border-left:4px solid #CE93D8; padding:8px 12px; border-radius:0 8px 8px 0; color:#F3E5F5; font-size:0.9rem;">💡 <b>Say It Better / सुभाषितम्:</b> {tip}</div>' if tip else ''}
     </div>
     """, unsafe_allow_html=True)
 
@@ -425,8 +475,8 @@ if "chat_history" not in st.session_state:
 # --- APP HERO BANNER ---
 st.markdown("""
 <div class="hero-banner">
-    <h2 style="margin:0; font-weight:800;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.95; font-size:0.95rem;">Interactive Sanskrit Pedagogy • High-Contrast Explanations • Amarakośa • Rūpa Arena • Chandaḥ</p>
+    <h2 style="margin:0; font-weight:900; letter-spacing:0.5px;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
+    <p style="margin:4px 0 0 0; opacity:0.95; font-size:0.95rem;">Multi-Themed Gamified Sanskrit AI • Amarakośa • Rūpa Arena • Chandaḥ • Mottos • Pañcāṅga</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -442,20 +492,29 @@ tab_roleplay, tab_trans, tab_amara, tab_rupa, tab_chandas, tab_motto, tab_samskr
 ])
 
 # =========================================================
-# TAB 1: SAMBHĀṢAṆA (HIGH-CONTRAST ROLEPLAY)
+# TAB 1: SAFFRON & FLAME THEME (ROLEPLAY)
 # =========================================================
 with tab_roleplay:
-    st.markdown("#### 💬 Live Dialogue with AI Guru (सजीव-सम्भाषणम्)")
+    st.markdown("""
+    <div class="theme-tab1">
+        <h3>💬 Saṃbhāṣaṇa Arena (सजीव-सम्भाषणम्)</h3>
+        <p style="color:#DDD; margin:0;">Immerse yourself in authentic spoken Sanskrit dialogues with real-time feedback.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#FFB300;">🎭 Choose Roleplay Context:</div>', unsafe_allow_html=True)
     scenario = st.selectbox(
-        "Select Roleplay Context / प्रसङ्गः:",
+        "Select Scenario:",
         [
             "At Gurukula / Classroom (गुरुकुलम् - शिष्टाचारः)",
             "At the Market (विपणिः - शाकक्रयणम् / Purchasing Vegetables)",
             "Vedic Debate & Philosophy (शास्त्रार्थ-सभा)",
             "Welcoming Guests at Home (अतिथि-सत्कारः)",
             "Open Free Sanskrit Dialogue (मुक्त-सम्भाषणम्)"
-        ]
+        ],
+        label_visibility="collapsed"
     )
+    st.markdown('</div>', unsafe_allow_html=True)
     
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
@@ -471,7 +530,7 @@ with tab_roleplay:
                     if aud_b64:
                         st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
 
-    render_autotype_mic("into the roleplay box below")
+    render_autotype_mic("into the roleplay prompt")
     
     if user_prompt := st.chat_input("Speak or type in Sanskrit / English / Telugu..."):
         if not api_key:
@@ -508,21 +567,29 @@ Format:
                     st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 2: ANUVĀDA-SETU (HIGH-CONTRAST TRANSLATOR)
+# TAB 2: EMERALD JADE THEME (TRANSLATOR)
 # =========================================================
 with tab_trans:
-    st.markdown("#### 🌐 Multi-Sentence & Paragraph Batch Translator (अनुवाद-सेतुः)")
-    t_dir = st.radio("Direction:", ["Any Language ➔ Sanskrit (संस्कृतम्)", "Sanskrit ➔ Regional Language / English"], horizontal=True)
+    st.markdown("""
+    <div class="theme-tab2">
+        <h3>🌐 Anuvāda-Setu (अनुवाद-सेतुः)</h3>
+        <p style="color:#C8E6C9; margin:0;">Sentence-by-Sentence Universal Translation with Sandhi Split and Paninian Grammar.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#00E676;">🔄 Translation Direction:</div>', unsafe_allow_html=True)
+    t_dir = st.radio("Select Direction:", ["Any Language ➔ Sanskrit (संस्कृतम्)", "Sanskrit ➔ Regional Language / English"], horizontal=True, label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     render_autotype_mic("into the translation box")
-    t_input = st.text_area("Enter complete paragraph or sentences:", value="Knowledge gives humility. From humility comes worthiness. With wealth comes righteousness, and then happiness.", height=120)
+    t_input = st.text_area("Enter complete paragraph or sentences:", value="Knowledge gives humility. From humility comes worthiness. With wealth comes righteousness, and then happiness.", height=110)
     
-    if st.button("🚀 Translate & Dissect Paragraph / सविस्तरम् अनुवादं कुरु", use_container_width=True) and t_input.strip():
+    if st.button("🚀 Translate & Dissect Paragraph / अनुवादं कुरु", use_container_width=True) and t_input.strip():
         if not api_key:
-            st.warning("⚠️ Enter Gemini API Key.")
+            st.warning("⚠️ Enter Gemini API Key in the sidebar.")
             st.stop()
         client = genai.Client(api_key=api_key)
-        with st.spinner("Analyzing syntax, Sandhi, and vocabulary..."):
+        with st.spinner("Translating and parsing morphology..."):
             try:
                 t_prompt = f"""Translate the following text. Split sentence-by-sentence.
 Direction: {t_dir}.
@@ -543,20 +610,20 @@ Text:
                 
                 for idx, item in enumerate(results, 1):
                     st.markdown(f"""
-                    <div class="trans-card">
-                        <div style="font-size:0.85rem; font-weight:800; color:#81C784; text-transform:uppercase;">
+                    <div style="background:#001A0E; border:2px solid #00E676; border-radius:14px; padding:18px; margin-bottom:14px; color:#FFFFFF; box-shadow:0 4px 14px rgba(0,230,118,0.25);">
+                        <div style="font-size:0.85rem; font-weight:800; color:#00E676; text-transform:uppercase;">
                             Sentence #{idx}
                         </div>
                         <div style="font-size:0.95rem; color:#DDD; margin-top:4px;">
                             <b>Original:</b> {item.get('original')}
                         </div>
-                        <div class="trans-sanskrit">
+                        <div style="font-size:1.4rem; font-weight:800; color:#FFE082; margin:6px 0;">
                             {item.get('sanskrit')}
                         </div>
-                        <div style="font-size:0.92rem; color:#80D8FF; font-style:italic;">
+                        <div style="font-size:0.95rem; color:#80D8FF; font-style:italic;">
                             <b>IAST:</b> {item.get('iast')}
                         </div>
-                        <div class="trans-pada">
+                        <div style="background:rgba(255,255,255,0.06); border:1px dashed #00E676; padding:8px 12px; border-radius:8px; color:#C8E6C9; font-size:0.92rem; margin-top:8px;">
                             <b>पदच्छेदः एवं व्याकरणम्:</b> {item.get('padaccheda')} • <i>{item.get('grammar_note')}</i>
                         </div>
                     </div>
@@ -569,33 +636,36 @@ Text:
                 st.error(f"Translation Error: {str(e)}")
 
 # =========================================================
-# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES + HIGHLIGHTED KEYS)
+# TAB 3: AMETHYST PURPLE THEME (AMARAKOŚA)
 # =========================================================
 with tab_amara:
-    st.markdown("#### 📖 अमरकोश-व्यूहः (Amarakośa Thesaurus & Synonym Arena)")
-    amara_game = st.selectbox("Choose Amarakośa Challenge:", ["1. Synonym Matching (पर्यायपद-मेलनम्)", "2. Odd One Out (विजातीय-पद-चयनम्)", "3. Word Hunt & Śloka Clues"])
+    st.markdown("""
+    <div class="theme-tab3">
+        <h3>📖 Amarakośa-Vyūha (अमरकोश-व्यूहः)</h3>
+        <p style="color:#E1BEE7; margin:0;">Synonym Challenges, Thesaurus Mazes, and Ancient Word Hunt Games.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#EA80FC;">🔮 Select Challenge Mode:</div>', unsafe_allow_html=True)
+    amara_game = st.selectbox("Choose Mode:", ["1. Synonym Matching (पर्यायपद-मेलनम्)", "2. Odd One Out (विजातीय-पद-चयनम्)", "3. Word Hunt & Śloka Clues"], label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     if amara_game.startswith("1"):
-        st.markdown("""
-        <div class="game-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">🎯 Match the Classical Synonyms</h4>
-            <p style="font-size:0.9rem; color:#DDD;">Find the matching Amarakośa synonym for each base word.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#EA80FC;">🎯 Match the Amarakośa Synonyms:</div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
-            st.info("Word 1: **अग्निः (Fire)** ➔ ?")
-            a1 = st.selectbox("Select match for अग्निः:", ["वैश्वानरः (Amarakośa)", "तोयदः", "शशाङ्कः", "पादपः"], key="am_1")
-            st.info("Word 2: **सूर्यः (Sun)** ➔ ?")
-            a2 = st.selectbox("Select match for सूर्यः:", ["दिनकरः / मार्तण्डः", "जलधिः", "पन्नगः", "गिरीन्द्रः"], key="am_2")
+            st.markdown("<b>1. अग्निः (Fire) ➔</b>", unsafe_allow_html=True)
+            a1 = st.selectbox("Match for अग्निः:", ["वैश्वानरः (Amarakośa)", "तोयदः", "शशाङ्कः", "पादपः"], key="am_1", label_visibility="collapsed")
+            st.markdown("<b>2. सूर्यः (Sun) ➔</b>", unsafe_allow_html=True)
+            a2 = st.selectbox("Match for सूर्यः:", ["दिनकरः / मार्तण्डः", "जलधिः", "पन्नगः", "गिरीन्द्रः"], key="am_2", label_visibility="collapsed")
         with c2:
-            st.info("Word 3: **सिंहः (Lion)** ➔ ?")
-            a3 = st.selectbox("Select match for सिंहः:", ["मृगेन्द्रः / पञ्चाननः", "वारणः", "मर्कटः", "भुजङ्गः"], key="am_3")
-            st.info("Word 4: **पृथिवी (Earth)** ➔ ?")
-            a4 = st.selectbox("Select match for पृथिवी:", ["वसुन्धरा / मेदिनी", "गगनम्", "पवनः", "अर्णवः"], key="am_4")
+            st.markdown("<b>3. सिंहः (Lion) ➔</b>", unsafe_allow_html=True)
+            a3 = st.selectbox("Match for सिंहः:", ["मृगेन्द्रः / पञ्चाननः", "वारणः", "मर्कटः", "भुजङ्गः"], key="am_3", label_visibility="collapsed")
+            st.markdown("<b>4. पृथिवी (Earth) ➔</b>", unsafe_allow_html=True)
+            a4 = st.selectbox("Match for पृथिवी:", ["वसुन्धरा / मेदिनी", "गगनम्", "पवनः", "अर्णवः"], key="am_4", label_visibility="collapsed")
+        st.markdown('</div>', unsafe_allow_html=True)
             
-        if st.button("Submit Amarakośa Matches / उत्तरं समर्पय", key="btn_amara"):
+        if st.button("Submit Amarakośa Matches / उत्तरं समर्पय", key="btn_amara", use_container_width=True):
             is_a1 = a1.startswith("वैश्वानरः")
             is_a2 = a2.startswith("दिनकरः")
             is_a3 = a3.startswith("मृगेन्द्रः")
@@ -622,10 +692,12 @@ with tab_amara:
             """, unsafe_allow_html=True)
 
     elif amara_game.startswith("2"):
-        st.markdown("##### 🔍 Identify the Intruder (Which word is NOT a synonym?)")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#EA80FC;">🔍 Identify the Intruder Word:</div>', unsafe_allow_html=True)
         st.markdown("**Group:** `[चन्द्रः, हिमांशुः, सुधाकरः, भास्करः]`")
-        intruder = st.radio("Which word does not belong to the group?", ["चन्द्रः (Moon)", "हिमांशुः (Moon)", "सुधाकरः (Moon)", "भास्करः (Sun - Intruder)"])
-        if st.button("Check Intruder"):
+        intruder = st.radio("Which word does NOT belong to the group?", ["चन्द्रः (Moon)", "हिमांशुः (Moon)", "सुधाकरः (Moon)", "भास्करः (Sun - Intruder)"])
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("Check Intruder / उत्तरं पश्य", use_container_width=True):
             if "भास्करः" in intruder:
                 st.success("✅ साधु! 'भास्करः' means Sun, while the rest are synonyms for the Moon. (+15 XP)")
                 update_user_xp(st.session_state.user_session_id, 15)
@@ -647,10 +719,12 @@ with tab_amara:
             """, unsafe_allow_html=True)
 
     else:
-        st.markdown("##### 📜 Amarakośa Verse Clue & Word Hunt")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#EA80FC;">📜 Amarakośa Verse Clue & Word Hunt:</div>', unsafe_allow_html=True)
         st.code("खं नभो रोदसी चाभ्रं पुष्करं विष्णुपदं नमः। (अमरकोशः १.२.१)")
         ans_hunt = st.text_input("Which cosmic entity is described in this Amarakośa verse? (English/Sanskrit):")
-        if st.button("Verify Clue"):
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("Verify Word Hunt / समाधानं पश्य", use_container_width=True):
             is_right = any(k in ans_hunt.lower() for k in ["sky", "space", "आकाश", "गगन", "द्यौः", "खम्", "नभः"])
             if is_right:
                 st.success("🎉 उत्कृष्टम्! Correctly identified! (+25 XP)")
@@ -662,7 +736,7 @@ with tab_amara:
             <div class="answer-box">
                 <div class="answer-header">🔑 Correct Solution & Lexicon Note:</div>
                 <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
-                    <b>Target Answer:</b> <span class="answer-badge">आकाशः / गगनम् (Sky / Space / Firmament)</span>
+                    <b>Target Entity:</b> <span class="answer-badge">आकाशः / गगनम् (Sky / Space / Firmament)</span>
                 </div>
                 <div class="explanation-callout">
                     <b>Listed Amarakośa Synonyms in Verse:</b><br>
@@ -672,14 +746,22 @@ with tab_amara:
             """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA + HIGHLIGHTED KEYS)
+# TAB 4: RUBY CRIMSON THEME (RŪPA ARENA)
 # =========================================================
 with tab_rupa:
-    st.markdown("#### 🏛️ रूप-साधना (Śabdarūpa & Dhāturūpa Matrix Drills)")
-    r_mode = st.radio("Select Grammar Discipline:", ["1. Śabdarūpa Declension Grid (शब्दरूपाणि)", "2. Dhāturūpa Tense Matcher (धातुरूपाणि)"], horizontal=True)
+    st.markdown("""
+    <div class="theme-tab4">
+        <h3>🏛️ Rūpa-Sādhana (रूप-साधना)</h3>
+        <p style="color:#FFCDD2; margin:0;">Declension Grid Matrices (Śabdarūpa) & Verb Tense Conjugations (Dhāturūpa).</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#FF5252;">⚔️ Select Grammar Discipline:</div>', unsafe_allow_html=True)
+    r_mode = st.radio("Select Discipline:", ["1. Śabdarūpa Declension Grid (शब्दरूपाणि)", "2. Dhāturūpa Tense Matcher (धातुरूपाणि)"], horizontal=True, label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     if r_mode.startswith("1"):
-        st.markdown("##### 🧩 Complete the Declension Grid for **'राम' (अकारान्त पुंल्लिङ्ग)**")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#FF5252;">🧩 Complete the Declension Grid for \'राम\' (Masculine):</div>', unsafe_allow_html=True)
         col_g1, col_g2, col_g3 = st.columns(3)
         with col_g1:
             st.caption("प्रथमा (Nominative):")
@@ -696,8 +778,9 @@ with tab_rupa:
             r7 = st.text_input("एकवचनम् (Fill):", key="r_loc_1")
             r8 = st.text_input("द्विवचनम् (Fill):", key="r_loc_2")
             r9 = st.text_input("बहुवचनम्:", value="रामेषु", disabled=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        if st.button("Validate Declension Matrix / रूप-परीक्षणम्"):
+        if st.button("Validate Declension Matrix / रूप-परीक्षणम्", use_container_width=True):
             c_dvi = (r2.strip() in ["रामौ", "ramau"])
             c_bahu = (r3.strip() in ["रामाः", "ramaah", "ramAH"])
             c_inst1 = (r4.strip() in ["रामेण", "ramena", "rameNa"])
@@ -746,9 +829,8 @@ with tab_rupa:
             """, unsafe_allow_html=True)
 
     else:
-        st.markdown("##### ⚡ Dhāturūpa Tense & Mood Classifier")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#FF5252;">⚡ Dhāturūpa Tense & Mood Classifier:</div>', unsafe_allow_html=True)
         dh_sample = st.selectbox("Analyze Verb Form:", ["पठिष्यति (Root: पठ्)", "अगच्छत् (Root: गम्)", "भवतु (Root: भू)", "कुर्यात् (Root: कृ)"])
-        
         c_lakara = st.selectbox("Select the correct Lakāra (Tense/Mood):", [
             "लट् (Present Tense)",
             "लृट् (Future Tense)",
@@ -756,7 +838,9 @@ with tab_rupa:
             "लोट् (Imperative Mood)",
             "विधिलिङ् (Potential/Optative Mood)"
         ])
-        if st.button("Submit Lakāra Assessment"):
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("Submit Lakāra Assessment / लकार-निर्णयः", use_container_width=True):
             correct_map = {
                 "पठिष्यति (Root: पठ्)": ("लृट् (Future Tense)", "Identified by the future suffix '-ष्यति' (लृट्-लकारः)."),
                 "अगच्छत् (Root: गम्)": ("लङ् (Past Imperfect)", "Identified by the augment 'अ-' prefix and halanta ending (लङ्-लकारः)."),
@@ -786,17 +870,24 @@ with tab_rupa:
             """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 5: CHANDAḤ ENGINE (CLEAN METRE SCANSION - NO WAVE)
+# TAB 5: SAPPHIRE BLUE THEME (CHANDAḤ METRE)
 # =========================================================
 with tab_chandas:
-    st.markdown("#### 🕉️ छन्दः-शास्त्रम् (Pingala Metre Scansion & Syllable Engine)")
-    st.caption("Analyzes verses for classical Pingala metres (Anuṣṭubh, Triṣṭubh, Indravajrā, etc.) with exact Laghu (।) and Guru (ऽ) breakdowns.")
+    st.markdown("""
+    <div class="theme-tab5">
+        <h3>🕉️ Pingala Chandaḥ-Śāstram (छन्दो-विश्लेषकः)</h3>
+        <p style="color:#B3E5FC; margin:0;">Metrical Scansion with Laghu (।) and Guru (ऽ) Syllabic Breakdown and Gana Formations.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#40C4FF;">📜 Verse Input for Scansion:</div>', unsafe_allow_html=True)
     v_scan = st.text_area(
-        "Enter Sanskrit verse for metrical scansion:",
+        "Enter Sanskrit verse:",
         value="वागर्थाविव सम्प्रुक्तौ वागर्थप्रतिपत्तये।\nजगतः पितरौ वन्दे पार्वतीपरमेश्वरौ॥",
-        height=90
+        height=90,
+        label_visibility="collapsed"
     )
+    st.markdown('</div>', unsafe_allow_html=True)
     
     if st.button("🚀 Scan Metre & Ganas / छन्दो-विश्लेषणम्", use_container_width=True):
         if not api_key:
@@ -810,11 +901,11 @@ with tab_chandas:
                     [{"role": "user", "parts": [{"text": f"Perform Pingala Chandas scansion on: '{v_scan}'. Return: 1. Metre Name, 2. Laghu (।) and Guru (ऽ) syllabic mapping per pāda, 3. Gana breakdown (e.g. ma-ya-ra-sa), 4. Metric rule definition."}]}]
                 )
                 st.markdown(f"""
-                <div class="trans-card">
-                    <div style="font-size:1.1rem; font-weight:800; color:#81C784; margin-bottom:8px;">
-                        📜 Metrical Scansion Report:
+                <div style="background:#001729; border:2px solid #00B0FF; border-radius:14px; padding:20px; color:#FFFFFF; box-shadow:0 4px 16px rgba(0,176,255,0.3);">
+                    <div style="font-size:1.15rem; font-weight:800; color:#80D8FF; margin-bottom:10px;">
+                        📜 Pingala Metrical Scansion Report:
                     </div>
-                    <div style="font-size:0.95rem; color:#FFFFFF; line-height:1.7;">
+                    <div style="font-size:0.98rem; color:#FFFFFF; line-height:1.7;">
                         {res}
                     </div>
                 </div>
@@ -824,11 +915,15 @@ with tab_chandas:
                 st.error(str(e))
 
 # =========================================================
-# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS + HIGHLIGHTED KEYS)
+# TAB 6: SURYA GOLD THEME (MOTTOS)
 # =========================================================
 with tab_motto:
-    st.markdown("#### 🚩 संस्था-ध्येयवाक्य-क्रीडा (National & Global Sanskrit Mottos)")
-    st.caption("Discover how modern institutions derive their guiding principles from timeless Sanskrit literature.")
+    st.markdown("""
+    <div class="theme-tab6">
+        <h3>🚩 Saṃsthā-Dhyeyavākya (संस्था-ध्येयवाक्यानि)</h3>
+        <p style="color:#FFF9C4; margin:0;">National, Global & Academic Sanskrit Mottos with Scriptural Origins.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     mottos_db = [
         {"motto": "सत्यमेव जयते", "meaning": "Truth alone triumphs", "org": "Republic of India (भारत-सर्वकारः)", "source": "Muṇḍaka Upaniṣad (३.१.६)"},
@@ -842,16 +937,17 @@ with tab_motto:
     for m in mottos_db:
         st.markdown(f"""
         <div class="motto-badge">
-            <h4 style="color:#FFD54F; margin:0;">🚩 "{m['motto']}"</h4>
+            <h4 style="color:#FFD54F; margin:0; font-size:1.15rem;">🚩 "{m['motto']}"</h4>
             <div style="font-size:0.95rem; color:#FFF; margin-top:2px;"><b>Institution:</b> {m['org']}</div>
-            <div style="font-size:0.85rem; color:#81C784;"><b>Scriptural Source:</b> {m['source']} | <i>"{m['meaning']}"</i></div>
+            <div style="font-size:0.88rem; color:#FFE082;"><b>Scriptural Source:</b> {m['source']} | <i>"{m['meaning']}"</i></div>
         </div>
         """, unsafe_allow_html=True)
         
-    st.write("---")
-    st.markdown("##### 🎮 Quiz: Identify the Scriptural Source")
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#FFD600;">🎮 Quiz: Identify the Scriptural Origin:</div>', unsafe_allow_html=True)
     m_quiz = st.radio("Where is the motto **'योगक्षेमं वहाम्यहम्'** taken from?", ["Bhagavad Gītā (Chapter 9)", "Muṇḍaka Upaniṣad", "Rāmāyaṇa", "Ṛgveda"])
-    if st.button("Verify Motto Source"):
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if st.button("Verify Motto Source / स्रोत-परीक्षणम्", use_container_width=True):
         is_correct = ("Bhagavad Gītā" in m_quiz)
         if is_correct:
             st.success("🎉 उत्कृष्टम्! Correct scriptural source identified! (+25 XP)")
@@ -874,23 +970,36 @@ with tab_motto:
         """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & HIGHLIGHTED KEYS)
+# TAB 7: TEMPLE TEAL THEME (VEDAS & PAÑCĀṄGA)
 # =========================================================
 with tab_samskriti:
-    st.markdown("#### 🛕 संस्कृति-ज्ञानम् (Vedic Literature, Pañcāṅga Tithis & Festivals)")
-    s_mode = st.selectbox("Select Cultural Domain:", ["1. Pañcāṅga Tithi & Festival Matcher", "2. Vedic Literature & Upaniṣad Tree", "3. True / False Cultural Lightning Quiz"])
+    st.markdown("""
+    <div class="theme-tab7">
+        <h3>🛕 Saṃskṛti-Jñāna (संस्कृति-ज्ञानम्)</h3>
+        <p style="color:#B2EBF2; margin:0;">Vedic Literature Trees, Pañcāṅga Tithis, and Traditional Festivals.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="option-card"><div class="option-title" style="color:#00E5FF;">🛕 Select Cultural Domain:</div>', unsafe_allow_html=True)
+    s_mode = st.selectbox("Select Domain:", ["1. Pañcāṅga Tithi & Festival Matcher", "2. Vedic Literature & Upaniṣad Tree", "3. True / False Cultural Lightning Quiz"], label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     if s_mode.startswith("1"):
-        st.markdown("##### 📅 Match the Vedic Tithi to its Festival:")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#00E5FF;">📅 Match the Vedic Tithi to its Festival:</div>', unsafe_allow_html=True)
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            t1 = st.selectbox("1. श्रावण-पूर्णिमा (Śrāvaṇa Pūrṇimā):", ["रक्षाबन्धनम् / संस्कृत-दिनम्", "दीपावली", "होली", "विजयादशमी"])
-            t2 = st.selectbox("2. कार्तिक-अमावास्या (Kārttika Amāvāsyā):", ["दीपावली (Dīpāvalī)", "महाशिवरात्रिः", "रामनवमी", "गणेश-चतुर्थी"])
+            st.markdown("<b>1. श्रावण-पूर्णिमा (Śrāvaṇa Pūrṇimā):</b>", unsafe_allow_html=True)
+            t1 = st.selectbox("Tithi 1:", ["रक्षाबन्धनम् / संस्कृत-दिनम्", "दीपावली", "होली", "विजयादशमी"], label_visibility="collapsed")
+            st.markdown("<b>2. कार्तिक-अमावास्या (Kārttika Amāvāsyā):</b>", unsafe_allow_html=True)
+            t2 = st.selectbox("Tithi 2:", ["दीपावली (Dīpāvalī)", "महाशिवरात्रिः", "रामनवमी", "गणेश-चतुर्थी"], label_visibility="collapsed")
         with col_f2:
-            t3 = st.selectbox("3. फाल्गुन-पूर्णिमा (Phālguna Pūrṇimā):", ["होलिकोत्सवः (Holī)", "रथयात्रा", "मकर-सङ्क्रान्तिः", "गुरु-पूर्णिमा"])
-            t4 = st.selectbox("4. भाद्रपद-शुक्ल-चतुर्थी:", ["विनायक-चतुर्थी (Ganesha Chaturthi)", "जन्माष्टमी", "दशहरा", "उगादिः"])
+            st.markdown("<b>3. फाल्गुन-पूर्णिमा (Phālguna Pūrṇimā):</b>", unsafe_allow_html=True)
+            t3 = st.selectbox("Tithi 3:", ["होलिकोत्सवः (Holī)", "रथयात्रा", "मकर-सङ्क्रान्तिः", "गुरु-पूर्णिमा"], label_visibility="collapsed")
+            st.markdown("<b>4. भाद्रपद-शुक्ल-चतुर्थी:</b>", unsafe_allow_html=True)
+            t4 = st.selectbox("Tithi 4:", ["विनायक-चतुर्थी (Ganesha Chaturthi)", "जन्माष्टमी", "दशहरा", "उगादिः"], label_visibility="collapsed")
+        st.markdown('</div>', unsafe_allow_html=True)
             
-        if st.button("Submit Pañcāṅga Assessment"):
+        if st.button("Submit Pañcāṅga Assessment / तिथि-निर्णयः", use_container_width=True):
             is_t1 = t1.startswith("रक्षाबन्धनम्")
             is_t2 = t2.startswith("दीपावली")
             is_t3 = t3.startswith("होलिकोत्सवः")
@@ -907,7 +1016,7 @@ with tab_samskriti:
             st.markdown(f"""
             <div class="answer-box">
                 <div class="answer-header">🔑 Pañcāṅga & Tithi Answer Key:</div>
-                <ul style="margin:0; padding-left:20px; font-size:0.98rem; line-height:1.9; color:#FFFFFF;">
+                <ul style="margin:0; padding-left:20px; font-size:1rem; line-height:2.0; color:#FFFFFF;">
                     <li><b>श्रावण-पूर्णिमा:</b> <span class="answer-badge">रक्षाबन्धनम् / विश्व-संस्कृत-दिनम्</span> {'✅' if is_t1 else '❌'}</li>
                     <li><b>कार्तिक-अमावास्या:</b> <span class="answer-badge">दीपावली (Lakṣmī Pūjana)</span> {'✅' if is_t2 else '❌'}</li>
                     <li><b>फाल्गुन-पूर्णिमा:</b> <span class="answer-badge">होलिकोत्सवः / कामदहनम्</span> {'✅' if is_t3 else '❌'}</li>
@@ -917,15 +1026,23 @@ with tab_samskriti:
             """, unsafe_allow_html=True)
 
     elif s_mode.startswith("2"):
-        st.markdown("##### 📜 Vedic Heritage Tree")
         st.markdown("""
-        * **ऋग्वेदः:** ऐतरेयोपनिषद् • शाकल-शाखा • गायत्री-मन्त्रः (३.६२.१०)
-        * **यजुर्वेदः (शुक्ल/कृष्ण):** ईशावास्योपनिषद्, बृहदारण्यकोपनिषद्, तैत्तिरीयोपनिषद्
-        * **सामवेदः:** छान्दोग्योपनिषद्, केनोपनिषद् (गान-परम्परा)
-        * **अथर्ववेदः:** मुण्डकोपनिषद्, माण्डूक्योपनिषद्, प्रश्नोपनिषद्
-        """)
+        <div style="background:rgba(255,255,255,0.05); border:1px solid #00E5FF; border-radius:12px; padding:14px; margin-bottom:12px;">
+            <h4 style="color:#00E5FF; margin:0 0 6px 0;">📜 Vedic Lineage Tree:</h4>
+            <ul style="margin:0; padding-left:20px; color:#DDD; font-size:0.95rem;">
+                <li><b>ऋग्वेदः:</b> ऐतरेयोपनिषद् • गायत्री-मन्त्रः (३.६२.१०)</li>
+                <li><b>यजुर्वेदः:</b> ईशावास्योपनिषद्, बृहदारण्यकोपनिषद्, तैत्तिरीयोपनिषद्</li>
+                <li><b>सामवेदः:</b> छान्दोग्योपनिषद्, केनोपनिषद् (गान-परम्परा)</li>
+                <li><b>अथर्ववेदः:</b> मुण्डकोपनिषद्, माण्डूक्योपनिषद्, प्रश्नोपनिषद्</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#00E5FF;">❓ Mahāvākya Identification Quiz:</div>', unsafe_allow_html=True)
         q_v = st.radio("Which Upaniṣad contains the famous Mahāvākya **'अयमात्मा ब्रह्म'**?", ["माण्डूक्योपनिषद् (Atharvaveda)", "छान्दोग्योपनिषद्", "ईशावास्योपनिषद्"])
-        if st.button("Submit Veda Quiz"):
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("Submit Veda Quiz / वेदोपनिषत्-परीक्षणम्", use_container_width=True):
             is_right = ("माण्डूक्योपनिषद्" in q_v)
             if is_right:
                 st.success("✅ सत्यम्! Correct Upaniṣadic source identified! (+20 XP)")
@@ -950,10 +1067,12 @@ with tab_samskriti:
             """, unsafe_allow_html=True)
 
     else:
-        st.markdown("##### ⚡ True / False Lightning Drill")
+        st.markdown('<div class="option-card"><div class="option-title" style="color:#00E5FF;">⚡ True / False Lightning Drill:</div>', unsafe_allow_html=True)
         tf1 = st.radio("1. Pāṇini's Aṣṭādhyāyī contains approximately 4,000 grammatical sūtras.", ["True (सत्यम्)", "False (असत्यम्)"])
         tf2 = st.radio("2. The Gāyatrī Mantra is addressed to the solar deity Savitṛ in the Ṛgveda.", ["True (सत्यम्)", "False (असत्यम्)"])
-        if st.button("Submit Lightning Quiz"):
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("Submit Lightning Quiz / सत्यासत्य-परीक्षणम्", use_container_width=True):
             is_tf1 = tf1.startswith("True")
             is_tf2 = tf2.startswith("True")
             if is_tf1 and is_tf2:
@@ -965,7 +1084,7 @@ with tab_samskriti:
             st.markdown(f"""
             <div class="answer-box">
                 <div class="answer-header">🔑 Fact Check & Answer Key:</div>
-                <ul style="margin:0; padding-left:20px; font-size:0.95rem; line-height:1.8; color:#FFFFFF;">
+                <ul style="margin:0; padding-left:20px; font-size:0.98rem; line-height:1.9; color:#FFFFFF;">
                     <li><b>Statement 1:</b> <span class="answer-badge">True</span> — The Aṣṭādhyāyī contains 3,959 (~4,000) sūtras arranged across 8 chapters. {'✅' if is_tf1 else '❌'}</li>
                     <li><b>Statement 2:</b> <span class="answer-badge">True</span> — The Gāyatrī Mantra (tat savitur vareṇyaṃ...) is from Ṛgveda Mandala 3, Sūkta 62, Verse 10, addressed to Savitṛ. {'✅' if is_tf2 else '❌'}</li>
                 </ul>
