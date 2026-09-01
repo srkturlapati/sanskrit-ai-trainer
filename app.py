@@ -210,7 +210,7 @@ def render_autotype_mic(target_input_hint=""):
     </script>
     """, height=50)
 
-# --- CSS STYLES ---
+# --- CSS STYLES (HIGH-CONTRAST HIGHLIGHTING) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -231,12 +231,40 @@ st.markdown("""
         padding: 18px;
         margin-bottom: 12px;
     }
+    /* HIGH-CONTRAST SOLID ANSWER & EXPLANATION BOX */
     .answer-box {
-        background: rgba(46, 125, 50, 0.12);
-        border: 1.5px solid #4CAF50;
-        border-radius: 10px;
-        padding: 14px 18px;
-        margin-top: 12px;
+        background: #081C10 !important;
+        border: 2px solid #2E7D32 !important;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-top: 14px;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+    .answer-header {
+        color: #81C784 !important;
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin: 0 0 10px 0;
+    }
+    .answer-badge {
+        background: #FFD54F !important;
+        color: #000000 !important;
+        font-weight: 800 !important;
+        padding: 2px 10px;
+        border-radius: 6px;
+        display: inline-block;
+        font-size: 1rem;
+    }
+    .explanation-callout {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-left: 4px solid #81C784 !important;
+        padding: 10px 14px;
+        border-radius: 0 8px 8px 0;
+        margin-top: 10px;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #FFFFFF !important;
     }
     .motto-badge {
         background: linear-gradient(145deg, #3E2723, #1A0C00);
@@ -294,7 +322,7 @@ if "chat_history" not in st.session_state:
 st.markdown("""
 <div class="hero-banner">
     <h2 style="margin:0; font-weight:800;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • Instant Answer Keys & Explanations • Amarakośa • Rūpa Arena</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • High-Contrast Explanations • Amarakośa • Rūpa Matrix • Chandaḥ</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -419,7 +447,7 @@ Text:
                 st.error(f"Translation Error: {str(e)}")
 
 # =========================================================
-# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES + ANSWER KEYS)
+# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES + HIGHLIGHTED KEYS)
 # =========================================================
 with tab_amara:
     st.markdown("#### 📖 अमरकोश-व्यूहः (Amarakośa Thesaurus & Synonym Arena)")
@@ -459,15 +487,15 @@ with tab_amara:
             else:
                 st.warning(f"Score: {score}/4.")
                 
-            # DISPLAY COMPLETE ANSWER KEY
+            # HIGH-CONTRAST ANSWER KEY
             st.markdown(f"""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Correct Answers & Amarakośa Key:</h4>
-                <ul style="margin:0; padding-left:20px; font-size:0.92rem; color:#DDD;">
-                    <li><b>अग्निः (Fire):</b> <span style="color:#FFD54F;">वैश्वानरः / वह्निः / पावकः</span> {'✅' if is_a1 else '❌'}</li>
-                    <li><b>सूर्यः (Sun):</b> <span style="color:#FFD54F;">दिनकरः / मार्तण्डः / भानुः / सविता</span> {'✅' if is_a2 else '❌'}</li>
-                    <li><b>सिंहः (Lion):</b> <span style="color:#FFD54F;">मृगेन्द्रः / पञ्चाननः / केसरी</span> {'✅' if is_a3 else '❌'}</li>
-                    <li><b>पृथिवी (Earth):</b> <span style="color:#FFD54F;">वसुन्धरा / मेदिनी / उर्वी / धरणी</span> {'✅' if is_a4 else '❌'}</li>
+                <div class="answer-header">🔑 Complete Amarakośa Synonym Key:</div>
+                <ul style="margin:0; padding-left:20px; font-size:0.98rem; line-height:1.9; color:#FFFFFF;">
+                    <li><b>अग्निः (Fire):</b> <span class="answer-badge">वैश्वानरः / वह्निः / पावकः</span> {'✅' if is_a1 else '❌'}</li>
+                    <li><b>सूर्यः (Sun):</b> <span class="answer-badge">दिनकरः / मार्तण्डः / भानुः</span> {'✅' if is_a2 else '❌'}</li>
+                    <li><b>सिंहः (Lion):</b> <span class="answer-badge">मृगेन्द्रः / पञ्चाननः / केसरी</span> {'✅' if is_a3 else '❌'}</li>
+                    <li><b>पृथिवी (Earth):</b> <span class="answer-badge">वसुन्धरा / मेदिनी / उर्वी</span> {'✅' if is_a4 else '❌'}</li>
                 </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -483,13 +511,18 @@ with tab_amara:
             else:
                 st.error("❌ Incorrect choice.")
             
+            # HIGH-CONTRAST ANSWER & EXPLANATION
             st.markdown("""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Explanation & Answer Key:</h4>
-                <p style="margin:0; font-size:0.9rem; color:#DDD;">
-                    <b>Correct Intruder:</b> <span style="color:#FFD54F;">भास्करः (The Sun)</span>.<br>
-                    <i>चन्द्रः, हिमांशुः (He of cool rays), and सुधाकरः (Mine of nectar)</i> are all classical Amarakośa synonyms for the <b>Moon (शशाङ्कः)</b>.
-                </p>
+                <div class="answer-header">🔑 Correct Answer & Detailed Explanation:</div>
+                <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
+                    <b>Correct Intruder:</b> <span class="answer-badge">भास्करः (The Sun)</span>
+                </div>
+                <div class="explanation-callout">
+                    <b>विवरणम् (Explanation):</b><br>
+                    • <b>भास्करः</b> means the <b>Sun</b> (भास् + करः = maker of light).<br>
+                    • <i>चन्द्रः, हिमांशुः</i> (he of cool rays), and <i>सुधाकरः</i> (mine of nectar) are all classical Amarakośa synonyms for the <b>Moon (शशाङ्कः)</b>.
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -507,16 +540,19 @@ with tab_amara:
             
             st.markdown("""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Solution & Lexicon Note:</h4>
-                <p style="margin:0; font-size:0.9rem; color:#DDD;">
-                    <b>Target Answer:</b> <span style="color:#FFD54F;">आकाशः / गगनम् (Sky / Space / Celestial Firmament)</span>.<br>
-                    <b>Listed Amarakośa Synonyms in Verse:</b> <i>खम् (Kham), नभः (Nabhaḥ), रोदसी (Rodasī), अभ्रम् (Abhram), पुष्करम् (Puṣkaram), विष्णुपदम् (Viṣṇupadam).</i>
-                </p>
+                <div class="answer-header">🔑 Correct Solution & Lexicon Note:</div>
+                <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
+                    <b>Target Answer:</b> <span class="answer-badge">आकाशः / गगनम् (Sky / Space / Firmament)</span>
+                </div>
+                <div class="explanation-callout">
+                    <b>Listed Amarakośa Synonyms in Verse:</b><br>
+                    <i>खम् (Kham), नभः (Nabhaḥ), रोदसी (Rodasī), अभ्रम् (Abhram), पुष्करम् (Puṣkaram), विष्णुपदम् (Viṣṇupadam).</i>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA + ANSWER KEYS)
+# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA + HIGHLIGHTED KEYS)
 # =========================================================
 with tab_rupa:
     st.markdown("#### 🏛️ रूप-साधना (Śabdarūpa & Dhāturūpa Matrix Drills)")
@@ -557,34 +593,34 @@ with tab_rupa:
             else:
                 st.warning(f"Score: {total_corr}/6 correct.")
                 
-            # DISPLAY MATRIX ANSWER KEY
+            # HIGH-CONTRAST MATRIX TABLE
             st.markdown(f"""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Complete Śabdarūpa Answer Key (राम - Masculine):</h4>
-                <table style="width:100%; border-collapse:collapse; color:#DDD; font-size:0.9rem;">
+                <div class="answer-header">🔑 Complete Śabdarūpa Answer Key (राम - Masculine):</div>
+                <table style="width:100%; border-collapse:collapse; color:#FFFFFF; font-size:0.95rem; margin-top:8px;">
+                    <tr style="border-bottom:2px solid #2E7D32; background:rgba(255,255,255,0.05);">
+                        <th style="text-align:left; padding:8px;">विभक्तिः (Case)</th>
+                        <th style="text-align:left; padding:8px;">एकवचनम्</th>
+                        <th style="text-align:left; padding:8px;">द्विवचनम्</th>
+                        <th style="text-align:left; padding:8px;">बहुवचनम्</th>
+                    </tr>
                     <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-                        <th style="text-align:left; padding:4px;">विभक्तिः (Case)</th>
-                        <th style="text-align:left; padding:4px;">एकवचनम्</th>
-                        <th style="text-align:left; padding:4px;">द्विवचनम्</th>
-                        <th style="text-align:left; padding:4px;">बहुवचनम्</th>
+                        <td style="padding:8px;"><b>प्रथमा (Nom):</b></td>
+                        <td style="padding:8px; color:#AAA;">रामः</td>
+                        <td style="padding:8px;"><span class="answer-badge">रामौ</span> {'✅' if c_dvi else '❌'}</td>
+                        <td style="padding:8px;"><span class="answer-badge">रामाः</span> {'✅' if c_bahu else '❌'}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:8px;"><b>तृतीया (Inst):</b></td>
+                        <td style="padding:8px;"><span class="answer-badge">रामेण</span> {'✅' if c_inst1 else '❌'}</td>
+                        <td style="padding:8px; color:#AAA;">रामाभ्याम्</td>
+                        <td style="padding:8px;"><span class="answer-badge">रामैः</span> {'✅' if c_inst3 else '❌'}</td>
                     </tr>
                     <tr>
-                        <td style="padding:4px;"><b>प्रथमा (Nom):</b></td>
-                        <td style="padding:4px; color:#AAA;">रामः</td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामौ</b> {'✅' if c_dvi else '❌'}</td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामाः</b> {'✅' if c_bahu else '❌'}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:4px;"><b>तृतीया (Inst):</b></td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामेण</b> {'✅' if c_inst1 else '❌'}</td>
-                        <td style="padding:4px; color:#AAA;">रामाभ्याम्</td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामैः</b> {'✅' if c_inst3 else '❌'}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:4px;"><b>सप्तमी (Loc):</b></td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामे</b> {'✅' if c_loc1 else '❌'}</td>
-                        <td style="padding:4px; color:#FFD54F;"><b>रामयोः</b> {'✅' if c_loc2 else '❌'}</td>
-                        <td style="padding:4px; color:#AAA;">रामेषु</td>
+                        <td style="padding:8px;"><b>सप्तमी (Loc):</b></td>
+                        <td style="padding:8px;"><span class="answer-badge">रामे</span> {'✅' if c_loc1 else '❌'}</td>
+                        <td style="padding:8px;"><span class="answer-badge">रामयोः</span> {'✅' if c_loc2 else '❌'}</td>
+                        <td style="padding:8px; color:#AAA;">रामेषु</td>
                     </tr>
                 </table>
             </div>
@@ -618,12 +654,15 @@ with tab_rupa:
                 
             st.markdown(f"""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Verb Analysis & Lakāra Key:</h4>
-                <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                <div class="answer-header">🔑 Correct Verb Analysis & Lakāra Key:</div>
+                <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
                     <b>Target Verb:</b> <span style="color:#FFD54F;">{dh_sample}</span><br>
-                    <b>Correct Lakāra:</b> <span style="color:#81C784;"><b>{target_ans}</b></span><br>
-                    <b>Pāṇinian Rule:</b> <i>{target_rule}</i>
-                </p>
+                    <b>Correct Lakāra:</b> <span class="answer-badge">{target_ans}</span>
+                </div>
+                <div class="explanation-callout">
+                    <b>Pāṇinian Rule & Marker:</b><br>
+                    <i>{target_rule}</i>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -697,7 +736,7 @@ with tab_chandas:
                 st.error(str(e))
 
 # =========================================================
-# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS + ANSWER KEYS)
+# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS + HIGHLIGHTED KEYS)
 # =========================================================
 with tab_motto:
     st.markdown("#### 🚩 संस्था-ध्येयवाक्य-क्रीडा (National & Global Sanskrit Mottos)")
@@ -734,17 +773,20 @@ with tab_motto:
             
         st.markdown("""
         <div class="answer-box">
-            <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Source & Verse Details:</h4>
-            <p style="margin:0; font-size:0.9rem; color:#DDD;">
-                <b>Correct Source:</b> <span style="color:#FFD54F;">Bhagavad Gītā (Chapter 9, Verse 22)</span>.<br>
-                <b>Full Śloka:</b> <i>अनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते। तेषां नित्याभियुक्तानां <b>योगक्षेमं वहाम्यहम्</b>॥</i><br>
+            <div class="answer-header">🔑 Correct Source & Verse Details:</div>
+            <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
+                <b>Correct Source:</b> <span class="answer-badge">Bhagavad Gītā (Chapter 9, Verse 22)</span>
+            </div>
+            <div class="explanation-callout">
+                <b>Full Śloka:</b><br>
+                <i>अनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते। तेषां नित्याभियुक्तानां <b>योगक्षेमं वहाम्यहम्</b>॥</i><br>
                 <b>Meaning:</b> <i>"To those who worship Me with single-minded devotion, I carry what they lack and preserve what they have."</i>
-            </p>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & ANSWER KEYS)
+# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & HIGHLIGHTED KEYS)
 # =========================================================
 with tab_samskriti:
     st.markdown("#### 🛕 संस्कृति-ज्ञानम् (Vedic Literature, Pañcāṅga Tithis & Festivals)")
@@ -774,15 +816,14 @@ with tab_samskriti:
             else:
                 st.warning(f"Score: {f_score}/4.")
                 
-            # DISPLAY PAÑCĀṄGA ANSWER KEY
             st.markdown(f"""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Pañcāṅga & Tithi Answer Key:</h4>
-                <ul style="margin:0; padding-left:20px; font-size:0.92rem; color:#DDD;">
-                    <li><b>श्रावण-पूर्णिमा:</b> <span style="color:#FFD54F;">रक्षाबन्धनम् / विश्व-संस्कृत-दिनम्</span> {'✅' if is_t1 else '❌'}</li>
-                    <li><b>कार्तिक-अमावास्या:</b> <span style="color:#FFD54F;">दीपावली (Lakṣmī Pūjana)</span> {'✅' if is_t2 else '❌'}</li>
-                    <li><b>फाल्गुन-पूर्णिमा:</b> <span style="color:#FFD54F;">होलिकोत्सवः / कामदहनम्</span> {'✅' if is_t3 else '❌'}</li>
-                    <li><b>भाद्रपद-शुक्ल-चतुर्थी:</b> <span style="color:#FFD54F;">विनायक-चतुर्थी (Ganesha Chaturthi)</span> {'✅' if is_t4 else '❌'}</li>
+                <div class="answer-header">🔑 Pañcāṅga & Tithi Answer Key:</div>
+                <ul style="margin:0; padding-left:20px; font-size:0.98rem; line-height:1.9; color:#FFFFFF;">
+                    <li><b>श्रावण-पूर्णिमा:</b> <span class="answer-badge">रक्षाबन्धनम् / विश्व-संस्कृत-दिनम्</span> {'✅' if is_t1 else '❌'}</li>
+                    <li><b>कार्तिक-अमावास्या:</b> <span class="answer-badge">दीपावली (Lakṣmī Pūjana)</span> {'✅' if is_t2 else '❌'}</li>
+                    <li><b>फाल्गुन-पूर्णिमा:</b> <span class="answer-badge">होलिकोत्सवः / कामदहनम्</span> {'✅' if is_t3 else '❌'}</li>
+                    <li><b>भाद्रपद-शुक्ल-चतुर्थी:</b> <span class="answer-badge">विनायक-चतुर्थी (Ganesha Chaturthi)</span> {'✅' if is_t4 else '❌'}</li>
                 </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -806,15 +847,17 @@ with tab_samskriti:
                 
             st.markdown("""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Mahāvākya & Upaniṣad Key:</h4>
-                <p style="margin:0; font-size:0.9rem; color:#DDD;">
-                    <b>Correct Answer:</b> <span style="color:#FFD54F;">माण्डूक्योपनिषद् (Māṇḍūkya Upaniṣad - Atharvaveda, Verse 2)</span>.<br>
-                    <b>Four Primary Mahāvākyas:</b><br>
-                    • <i>प्रज्ञानं ब्रह्म</i> (Aitareya - Ṛgveda)<br>
-                    • <i>अहं ब्रह्मास्मि</i> (Bṛhadāraṇyaka - Śukla Yajurveda)<br>
-                    • <i>तत्त्वमसि</i> (Chāndogya - Sāmaveda)<br>
-                    • <b>अयमात्मा ब्रह्म</b> (Māṇḍūkya - Atharvaveda)
-                </p>
+                <div class="answer-header">🔑 Mahāvākya & Upaniṣad Key:</div>
+                <div style="margin-bottom:8px; font-size:1.05rem; color:#FFFFFF;">
+                    <b>Correct Answer:</b> <span class="answer-badge">माण्डूक्योपनिषद् (Māṇḍūkya Upaniṣad, Verse 2)</span>
+                </div>
+                <div class="explanation-callout">
+                    <b>Four Primary Upaniṣadic Mahāvākyas:</b><br>
+                    • <i>प्रज्ञानं ब्रह्म</i> (Aitareya Upaniṣad - Ṛgveda)<br>
+                    • <i>अहं ब्रह्मास्मि</i> (Bṛhadāraṇyaka Upaniṣad - Śukla Yajurveda)<br>
+                    • <i>तत्त्वमसि</i> (Chāndogya Upaniṣad - Sāmaveda)<br>
+                    • <b>अयमात्मा ब्रह्म</b> (Māṇḍūkya Upaniṣad - Atharvaveda)
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -833,10 +876,10 @@ with tab_samskriti:
                 
             st.markdown(f"""
             <div class="answer-box">
-                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Fact Check & Answer Key:</h4>
-                <ul style="margin:0; padding-left:20px; font-size:0.9rem; color:#DDD;">
-                    <li><b>Statement 1:</b> <span style="color:#FFD54F;">True</span> — The Aṣṭādhyāyī contains 3,959 (~4,000) sūtras arranged across 8 chapters. {'✅' if is_tf1 else '❌'}</li>
-                    <li><b>Statement 2:</b> <span style="color:#FFD54F;">True</span> — The Gāyatrī Mantra (tat savitur vareṇyaṃ...) is from Ṛgveda Mandala 3, Sūkta 62, Verse 10, addressed to Savitṛ. {'✅' if is_tf2 else '❌'}</li>
+                <div class="answer-header">🔑 Fact Check & Answer Key:</div>
+                <ul style="margin:0; padding-left:20px; font-size:0.95rem; line-height:1.8; color:#FFFFFF;">
+                    <li><b>Statement 1:</b> <span class="answer-badge">True</span> — The Aṣṭādhyāyī contains 3,959 (~4,000) sūtras arranged across 8 chapters. {'✅' if is_tf1 else '❌'}</li>
+                    <li><b>Statement 2:</b> <span class="answer-badge">True</span> — The Gāyatrī Mantra (tat savitur vareṇyaṃ...) is from Ṛgveda Mandala 3, Sūkta 62, Verse 10, addressed to Savitṛ. {'✅' if is_tf2 else '❌'}</li>
                 </ul>
             </div>
             """, unsafe_allow_html=True)
