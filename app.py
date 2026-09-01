@@ -133,15 +133,22 @@ if "user_session_id" not in st.session_state:
 def get_user_stats(uid):
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute('SELECT streak, xp FROM user_profile WHERE id = ?', (uid,))
+    c.execute('SELECT streak, xp, level FROM user_profile WHERE id = ?', (uid,))
     res = c.fetchone()
     if not res:
-        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "Learner", "Beginner", 1, 100, ?)',
+        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "Learner", "Beginner (प्रथमा)", 1, 100, ?)',
                   (uid, str(datetime.date.today())))
         conn.commit()
-        res = (1, 100)
+        res = (1, 100, "Beginner (प्रथमा)")
     conn.close()
     return res
+
+def update_user_level(uid, new_level):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('UPDATE user_profile SET level = ? WHERE id = ?', (new_level, uid))
+    conn.commit()
+    conn.close()
 
 def update_user_xp(uid, xp_add=10):
     conn = get_db_connection()
@@ -317,6 +324,14 @@ st.markdown("""
         100% { height: 5px; width: 18px; }
     }
     
+    .diagnostic-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 143, 0, 0.3);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    
     .flashcard-box {
         background: linear-gradient(145deg, #2D1B08 0%, #170E04 100%);
         border: 2px solid #FF8F00;
@@ -465,7 +480,6 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     </script>
     """, unsafe_allow_html=True)
 
-# --- REAL-TIME WAVEFORM PITCH MATCHING & VOCAL VISUALIZER (POINT 3) ---
 def render_live_waveform_pitch_visualizer():
     components.html("""
     <div style="font-family:'Plus Jakarta Sans', sans-serif; background:#120B02; border:2px solid #FF8F00; border-radius:16px; padding:18px; color:#FFF;">
@@ -479,7 +493,6 @@ def render_live_waveform_pitch_visualizer():
             </button>
         </div>
 
-        <!-- HTML5 Web Audio Canvas -->
         <canvas id="pitchCanvas" width="700" height="150" style="width:100%; height:150px; background:#080401; border-radius:10px; border:1px solid #3E2723;"></canvas>
 
         <div style="display:flex; justify-content:space-around; align-items:center; margin-top:12px; background:rgba(255,255,255,0.03); padding:8px; border-radius:10px; font-size:0.82rem;">
@@ -503,7 +516,6 @@ def render_live_waveform_pitch_visualizer():
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     var source = audioCtx.createMediaStreamSource(micStream);
-                    
                     analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 2048;
                     source.connect(analyser);
@@ -540,7 +552,6 @@ def render_live_waveform_pitch_visualizer():
             analyser.getByteTimeDomainData(timeData);
             analyser.getByteFrequencyData(freqData);
 
-            // Compute volume
             var sum = 0;
             var maxFreqIndex = 0;
             var maxFreqVal = 0;
@@ -562,15 +573,12 @@ def render_live_waveform_pitch_visualizer():
                 document.getElementById("volVal").innerText = "0 dB";
             }
 
-            // Clear Background
             ctx.fillStyle = "#080401";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw Reference Ideal Vedic Pitch Waveform (Orange Sine Harmonic)
             ctx.lineWidth = 2;
             ctx.strokeStyle = "rgba(255, 143, 0, 0.4)";
             ctx.beginPath();
-            var refSlice = canvas.width / bufferLength;
             for (var i = 0; i < canvas.width; i++) {
                 var y = (canvas.height / 2) + Math.sin(i * 0.05 + Date.now() * 0.003) * 25;
                 if (i === 0) ctx.moveTo(i, y);
@@ -578,7 +586,6 @@ def render_live_waveform_pitch_visualizer():
             }
             ctx.stroke();
 
-            // Draw Student's Live Vocal Oscillogram (Cyan / Emerald Waveform)
             ctx.lineWidth = 2.5;
             ctx.strokeStyle = "#81C784";
             ctx.beginPath();
@@ -622,12 +629,12 @@ def split_into_sentences(text: str, max_limit=50):
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Live Vocal Pitch Visualizer • Interactive SRS Flashcards</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Diagnostic Placement Testing • Vocal Pitch Visualizer</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR ---
-u_streak, u_xp = get_user_stats(st.session_state.user_session_id)
+u_streak, u_xp, u_level = get_user_stats(st.session_state.user_session_id)
 
 with st.sidebar:
     st.markdown("### 🎙️ **Teacher & Voice Profile**")
@@ -651,11 +658,9 @@ with st.sidebar:
         help="Free key from aistudio.google.com/apikey"
     )
     
-    target_tier = st.selectbox(
-        "Student Tier / स्तरः",
-        ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"],
-        index=0
-    )
+    level_options = ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"]
+    default_idx = level_options.index(u_level) if u_level in level_options else 0
+    target_tier = st.selectbox("Active Tier / स्तरः", level_options, index=default_idx)
     
     st.markdown("---")
     st.markdown("### 🏆 **Database User Stats**")
@@ -664,6 +669,8 @@ with st.sidebar:
         st.metric("🔥 Streak", f"{u_streak} Days")
     with col_p2:
         st.metric("⭐ Points", f"{u_xp} XP")
+    
+    st.caption(f"🎯 Placed Skill Tier: **{u_level}**")
     
     if st.button("🔄 Reset Conversation", use_container_width=True):
         st.session_state.chat_history = []
@@ -683,7 +690,7 @@ FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', a high-performance interac
 Student Tier: {target_tier}.
 
 Pedagogical Rules:
-1. Converse dynamically in authentic spoken Sarala Samskritam.
+1. Converse dynamically in authentic spoken Sarala Samskritam matching the student's level.
 2. Keep response to 2-3 spoken sentences.
 3. Conclude by asking a natural conversational question.
 
@@ -696,13 +703,14 @@ Mandatory Response Format:
 - 💡 Correction & rule
 """
 
-# --- 5 PRODUCTION TABS ---
-tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_chandas, tab_trans = st.tabs([
+# --- 6 PRODUCTION TABS ---
+tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_diagnostic, tab_chandas, tab_trans = st.tabs([
     "💬 1. Oral Roleplay",
     "🧠 2. SRS Flashcard Quiz",
-    "🎙️ 3. Śikṣā Phonetics & Pitch Spectrum",
-    "🕉️ 4. Svara & Chandaḥ",
-    "🌐 5. Sentence Batch Translator (50 Sentences)"
+    "🎙️ 3. Śikṣā Phonetics & Pitch",
+    "📝 4. Diagnostic Placement Test",
+    "🕉️ 5. Svara & Chandaḥ",
+    "🌐 6. Batch Translator (50 Sentences)"
 ])
 
 # =========================================================
@@ -977,13 +985,12 @@ Text:
             st.markdown(f"• **{itm['word']}** — *{itm['meaning']}* | Root: `{itm['dhatu']}` | ⏳ Due: `{itm['review_due']}`")
 
 # =========================================================
-# TAB 3: ŚIKṢĀ PHONETICS & VOCAL PITCH SPECTRUM (POINT 3)
+# TAB 3: ŚIKṢĀ PHONETICS & VOCAL PITCH SPECTRUM
 # =========================================================
 with tab_shiksha:
     st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं स्वर-तरङ्गिणी (Phonetic Accent & Pitch Visualizer)")
     st.caption("Matches your real-time vocal harmonics and pronunciation against classical Vedic phonetics.")
     
-    # 1. Real-Time Waveform Spectrum Component
     render_live_waveform_pitch_visualizer()
     
     st.write("---")
@@ -1027,7 +1034,113 @@ with tab_shiksha:
                 st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 4: SVARA & CHANDAḤ ENGINE
+# TAB 4: AUTOMATED DIAGNOSTIC PLACEMENT TEST (POINT 4)
+# =========================================================
+with tab_diagnostic:
+    st.markdown("#### 📝 प्रवेश-परीक्षा एवं स्तर-निर्धारणम् (Diagnostic Placement Test)")
+    st.caption("Take this 5-dimension diagnostic test to evaluate your Sanskrit proficiency and automatically calibrate your learning tier.")
+    
+    with st.form("diagnostic_test_form"):
+        st.markdown("""
+        <div class="diagnostic-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">1. Vocabulary & Meaning / शब्दार्थ-ज्ञानम्</h4>
+            <p style="margin:0 0 10px 0; font-size:0.95rem;">What is the meaning of the word <b>'पिपासा' (Pipāsā)</b>?</p>
+        </div>
+        """, unsafe_allow_html=True)
+        q1 = st.radio("Choose correct meaning:", [
+            "Hunger (बुभुक्षा)",
+            "Thirst (पिपासा - इच्छा पातुम्)",
+            "Sleep (निद्रा)",
+            "Fatigue (श्रमः)"
+        ], index=0, key="diag_q1")
+        
+        st.markdown("""
+        <div class="diagnostic-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">2. Verb Inflection / तिङन्तरूप-ज्ञानम्</h4>
+            <p style="margin:0 0 10px 0; font-size:0.95rem;">Choose the correct past-tense (लङ्-लकारः) form for <b>'सः ____' (He went)</b> from root <i>गम् (to go)</i>:</p>
+        </div>
+        """, unsafe_allow_html=True)
+        q2 = st.radio("Choose correct verb form:", [
+            "गच्छति (Gacchati - Present)",
+            "अगच्छत् (Agacchat - Past 3rd Person Singular)",
+            "गमिष्यति (Gamiṣyati - Future)",
+            "अगच्छन् (Agacchan - Past Plural)"
+        ], index=0, key="diag_q2")
+        
+        st.markdown("""
+        <div class="diagnostic-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">3. Listening & Oral Comprehension / श्रवण-बोधः</h4>
+            <p style="margin:0 0 8px 0; font-size:0.95rem;">Listen to the short Sanskrit sentence spoken by Acharya:</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        listening_phrase = "छात्राः प्रतिदिनं विद्यालयं गच्छन्ति।"
+        l_audio = get_speech_audio_b64(listening_phrase, t_info["tld"], t_info["slow"])
+        if l_audio:
+            st.audio(f"data:audio/mp3;base64,{l_audio}", format="audio/mp3")
+            
+        q3 = st.radio("What did Acharya state in the audio clip?", [
+            "The teacher is teaching in the classroom.",
+            "Students go to school every day.",
+            "Children are playing in the garden.",
+            "I wake up at five in the morning."
+        ], index=0, key="diag_q3")
+        
+        st.markdown("""
+        <div class="diagnostic-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">4. Sandhi & Word Splitting / सन्धि-विश्लेषणम्</h4>
+            <p style="margin:0 0 10px 0; font-size:0.95rem;">What is the correct Sandhi split of <b>'इत्युक्त्वोपविष्टः'</b>?</p>
+        </div>
+        """, unsafe_allow_html=True)
+        q4 = st.radio("Choose correct split:", [
+            "इति + उक्त्वा + उपविष्टः (Yaṇ Sandhi + Guṇa Sandhi)",
+            "इत् + युक्त + उपविष्टः",
+            "इत्यु + क्त्वोप + विष्टः",
+            "इति + उक्ता + अपविष्टः"
+        ], index=0, key="diag_q4")
+        
+        st.markdown("""
+        <div class="diagnostic-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">5. Syntax & Case Agreement / कारक-विभक्ति-ज्ञानम्</h4>
+            <p style="margin:0 0 10px 0; font-size:0.95rem;">Fill in the blank with the correct case: <b>'बालकः ____ बिभेति।' (The boy is afraid of the dog)</b></p>
+        </div>
+        """, unsafe_allow_html=True)
+        q5 = st.radio("Choose the correct word:", [
+            "कुकुरम् (Accusative / द्वितीया)",
+            "कुकुरेण (Instrumental / तृतीया)",
+            "कुकुरात् (Ablative / पञ्चमी - भीत्रार्थानां भयहेतुः)",
+            "कुकुरस्य (Genitive / षष्ठी)"
+        ], index=0, key="diag_q5")
+        
+        submit_diag = st.form_submit_button("🏁 Submit Diagnostic Evaluation / परीक्षां समर्पय", use_container_width=True)
+        
+        if submit_diag:
+            score = 0
+            if "Thirst" in q1: score += 20
+            if "अगच्छत्" in q2: score += 20
+            if "Students go to school" in q3: score += 20
+            if "इति + उक्त्वा + उपविष्टः" in q4: score += 20
+            if "कुकुरात्" in q5: score += 20
+            
+            if score >= 80:
+                placed_level = "Advanced (उत्तमा)"
+                feedback_msg = "🌟 **उत्कृष्टम् (Exceptional Mastery)!** You demonstrated deep command of Pāṇinian grammar, Sandhi, and oral comprehension. You are placed in the Advanced Tier."
+            elif score >= 50:
+                placed_level = "Intermediate (मध्यमा)"
+                feedback_msg = "👍 **सम्यक् (Solid Foundation)!** You have good foundational vocabulary and sentence formation skills. You are placed in the Intermediate Tier."
+            else:
+                placed_level = "Beginner (प्रथमा)"
+                feedback_msg = "🌱 **प्रारम्भिकः (Welcome Learner)!** We will begin with spoken essentials, basic vocabulary, and step-by-step roleplay dialogues. You are placed in the Beginner Tier."
+                
+            update_user_level(st.session_state.user_session_id, placed_level)
+            update_user_xp(st.session_state.user_session_id, score)
+            
+            st.success(f"🎯 **Diagnostic Result:** Score: **{score}/100** | Placed Tier: **{placed_level}** (+{score} XP)")
+            st.markdown(feedback_msg)
+            st.info("💡 Your active learning tier in the sidebar and oral dialogue sessions has been automatically updated!")
+
+# =========================================================
+# TAB 5: SVARA & CHANDAḤ ENGINE
 # =========================================================
 with tab_chandas:
     st.markdown("#### 🕉️ वैदिक-स्वर एवं छन्दो-विश्लेषकः (Pingala Chandaḥ Engine)")
@@ -1051,7 +1164,7 @@ with tab_chandas:
                 st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 5: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
+# TAB 6: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
 # =========================================================
 with tab_trans:
     st.markdown("#### 🌐 Sentence-by-Sentence Batch Translator (Up to 50 Sentences at Once)")
