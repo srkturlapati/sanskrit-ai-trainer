@@ -6,7 +6,7 @@ import sqlite3
 import datetime
 import base64
 
-# Enforce UTF-8 encoding
+# Enforce UTF-8 encoding across environments
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -21,13 +21,12 @@ import streamlit as st
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Sambhāṣaṇa AI Pro | सम्भाषणम्",
+    page_title="Sambhāṣaṇa AI Pro | सम्भाषण-प्रशिक्षकः",
     page_icon="🚩",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Active, supported fast model
 ACTIVE_MODEL = "gemini-3.6-flash"
 
 # --- DATABASE PERSISTENCE LAYER (SQLite) ---
@@ -185,44 +184,53 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Helper to load uploaded images from local assets/ or fallback to web
-def get_avatar_img(filename, fallback_url):
-    local_p = os.path.join("assets", filename)
-    if os.path.exists(local_p):
-        try:
-            with open(local_p, "rb") as img_f:
-                b64 = base64.b64encode(img_f.read()).decode()
-                return f"data:image/png;base64,{b64}"
-        except Exception:
-            pass
-    return fallback_url
+# Helper: Load .jpeg, .jpg, or .png automatically from assets/
+def get_avatar_img(base_name, fallback_url):
+    extensions = [".jpeg", ".jpg", ".png", ".JPEG", ".JPG", ".PNG"]
+    for ext in extensions:
+        local_p = os.path.join("assets", base_name + ext)
+        if os.path.exists(local_p):
+            try:
+                mime = "image/jpeg" if ext.lower() in [".jpeg", ".jpg"] else "image/png"
+                with open(local_p, "rb") as img_f:
+                    b64 = base64.b64encode(img_f.read()).decode()
+                    return f"data:{mime};base64,{b64}", f"Custom Asset ({base_name}{ext})"
+            except Exception:
+                pass
+    return fallback_url, "Default Web Fallback"
 
-# --- TEACHER PERSONAS ---
+male_src, male_status = get_avatar_img("male_guru", "https://upload.wikimedia.org/wikipedia/commons/e/e3/Raja_Ravi_Varma_-_Sankaracharya.jpg")
+female_src, female_status = get_avatar_img("female_guru", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png")
+child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs")
+
 TEACHERS = {
     "Male Guru (आचार्यः वसिष्ठः)": {
         "title": "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)",
         "desc": "Traditional Classical Guru • Deep Pāṇinian Master",
-        "img": get_avatar_img("male_guru.png", "https://upload.wikimedia.org/wikipedia/commons/e/e3/Raja_Ravi_Varma_-_Sankaracharya.jpg"),
+        "img": male_src,
+        "status": male_status,
         "tld": "co.in",
         "is_slow": True
     },
     "Female Āchāryā (आचार्या गार्गी)": {
         "title": "आचार्या गार्गी (Acharyaa Gargi)",
         "desc": "Scholarly Preceptor • Warm Socratic Mentor",
-        "img": get_avatar_img("female_guru.png", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png"),
+        "img": female_src,
+        "status": female_status,
         "tld": "com",
         "is_slow": False
     },
     "Child Peer (बालकः ध्रुवः)": {
         "title": "बालकः ध्रुवः (Balaka Dhruva)",
         "desc": "Playful Young Peer • Fast & Cheerful Cadence",
-        "img": get_avatar_img("child_guru.png", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs"),
+        "img": child_src,
+        "status": child_status,
         "tld": "co.uk",
         "is_slow": False
     }
 }
 
-# --- AUDIO & TALKING AVATAR GENERATOR ---
+# Synchronized speech playback + Lip-Sync trigger
 def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
     clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
     if not clean_text:
@@ -285,6 +293,7 @@ with st.sidebar:
         <img src="{t_info['img']}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #FF8F00; margin-bottom:6px;"/>
         <div style="font-weight:700; color:#FF8F00;">{t_info['title']}</div>
         <div style="font-size:0.75rem; opacity:0.8;">{t_info['desc']}</div>
+        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Image: {t_info['status']}</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -310,16 +319,13 @@ with st.sidebar:
     with col_p2:
         st.markdown(f"""<div class="metric-pill"><div style="font-size:1.3rem; font-weight:700; color:#FF8F00;">⭐ {u_xp}</div><div style="font-size:0.7rem;">SAVED XP</div></div>""", unsafe_allow_html=True)
     
-    st.caption("💾 *All data automatically saved to SQLite DB.*")
     if st.button("🔄 Reset Conversation History", use_container_width=True):
         st.session_state.chat_history = []
         st.rerun()
 
-# State initialization
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- FAST LOW-LATENCY SYSTEM PROMPT ---
 FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', an instant Sanskrit dialogue tutor.
 Student Tier: {target_tier}.
 
@@ -333,7 +339,6 @@ Format ALWAYS:
 - 💡 Correction & rule
 """
 
-# --- TABS ---
 tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
     "💬 1. Ultra-Fast Oral Roleplay",
     "🎙️ 2. Śikṣā Phonetic Coach",
@@ -343,7 +348,7 @@ tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: LOW-LATENCY ORAL ROLEPLAY WITH TALKING AVATAR
+# TAB 1: LOW-LATENCY ORAL ROLEPLAY
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Situational Real-Life Immersion (सजीव-सम्भाषणम्)")
@@ -359,7 +364,6 @@ with tab_roleplay:
         ]
     )
     
-    # Display conversation messages
     for msg in st.session_state.chat_history:
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
@@ -371,7 +375,6 @@ with tab_roleplay:
     st.markdown("##### 🎙️ **Speak to Acharya (Oral Microphone):**")
     user_audio = st.audio_input("Record voice:")
 
-    # Handle Fast Audio Input
     if user_audio is not None:
         if not api_key:
             st.warning("⚠️ Enter your Gemini API key in the sidebar.")
@@ -414,7 +417,6 @@ with tab_roleplay:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    # Handle Fast Text Input
     if text_input := st.chat_input("Or type (e.g. mama nama, katham asti...):"):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
