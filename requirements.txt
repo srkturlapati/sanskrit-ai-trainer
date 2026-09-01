@@ -1,5 +1,4 @@
 streamlit
 google-genai
 indic-transliteration
-gTTS
 pypdf
