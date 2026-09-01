@@ -4,7 +4,7 @@ import time
 import io
 import hashlib
 
-# Ensure UTF-8 encoding across environments
+# Enforce UTF-8 across all runtime environments
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -17,15 +17,15 @@ from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
 import streamlit as st
 
-# TalkPal Mobile & Desktop Layout
+# Setup page layout
 st.set_page_config(
-    page_title="TalkPal Sanskrit AI",
-    page_icon="🗣️",
+    page_title="Sambhāṣaṇa AI • TalkPal & Sanskrit Guru",
+    page_icon="🚩",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- MODERN TALKPAL UI STYLING ---
+# Custom Styling for TalkPal & Guru UI
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
@@ -33,47 +33,39 @@ st.markdown("""
         font-family: 'Plus Jakarta Sans', sans-serif;
     }
     
-    /* Top Mode Navigation Pills */
-    .stRadio [role="radiogroup"] {
-        background: #F1F5F9;
-        padding: 6px;
-        border-radius: 16px;
-        display: flex;
-        gap: 8px;
-        justify-content: center;
-        border: 1px solid #E2E8F0;
+    /* Master Navigation Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px;
+        border-bottom: 2px solid #E2E8F0;
     }
-    .stRadio [role="radiogroup"] label {
-        background: transparent;
-        border-radius: 12px;
-        padding: 6px 14px;
-        font-weight: 600;
-        transition: all 0.2s ease;
+    .stTabs [data-baseweb="tab"] {
+        height: 52px;
+        white-space: pre-wrap;
+        border-radius: 12px 12px 0px 0px;
+        font-size: 16px;
+        font-weight: 700;
+        padding: 10px 24px;
     }
     
-    /* TalkPal Tutor Message Bubble */
+    /* TalkPal Bubble Styling */
     .talkpal-bubble-ai {
         background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
         border: 1px solid #DBEAFE;
         border-left: 5px solid #4F46E5;
         border-radius: 16px;
         padding: 16px 20px;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        margin-bottom: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
     }
-    
-    /* TalkPal User Message Bubble */
     .talkpal-bubble-user {
         background: #F0FDF4;
         border: 1px solid #DCFCE7;
         border-left: 5px solid #16A34A;
         border-radius: 16px;
         padding: 14px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        margin-bottom: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
-
-    /* Feedback Pill Badge */
     .talkpal-pill {
         display: inline-block;
         background: #EEF2FF;
@@ -86,21 +78,30 @@ st.markdown("""
         letter-spacing: 0.5px;
         margin-bottom: 8px;
     }
-    
-    /* Permanent Voice Recording Dock */
     .voice-dock {
         background: #FFFFFF;
         border: 2px solid #6366F1;
         border-radius: 16px;
-        padding: 12px 18px;
-        margin-top: 15px;
-        margin-bottom: 10px;
+        padding: 14px 20px;
+        margin-top: 14px;
+        margin-bottom: 14px;
         box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.1);
+    }
+    .suggestion-chip {
+        background-color: #F1F5F9;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        display: inline-block;
+        margin: 4px 4px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper: Sanskrit Audio Player (TTS) with TalkPal Slow/Normal Speed
+# Helper: Sanskrit TTS Audio with Pitch/Speed adjustment
 def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     try:
         clean = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
@@ -114,22 +115,49 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     except Exception:
         pass
 
+# Rate-limit resilient API caller
+def call_gemini_safe(client, model, contents, system_instruction):
+    for attempt in range(4):
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=contents,
+                config={"system_instruction": system_instruction, "temperature": 0.2}
+            )
+            return resp.text, None
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                sleep_time = 3 * (attempt + 1)
+                time.sleep(sleep_time)
+                continue
+            return None, err_str
+    return None, "Rate limit reached. Please wait 15 seconds before trying again."
+
 # --- SESSION STATES ---
 if "xp" not in st.session_state:
-    st.session_state.xp = 180
+    st.session_state.xp = 240
 if "streak" not in st.session_state:
     st.session_state.streak = 5
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "active_mode_key" not in st.session_state:
-    st.session_state.active_mode_key = "💬 Chat"
-if "last_processed_audio_hash" not in st.session_state:
-    st.session_state.last_processed_audio_hash = ""
+if "talkpal_history" not in st.session_state:
+    st.session_state.talkpal_history = []
+if "tp_mode" not in st.session_state:
+    st.session_state.tp_mode = "💬 Free Chat"
+if "last_audio_hash" not in st.session_state:
+    st.session_state.last_audio_hash = ""
+if "guru_quiz" not in st.session_state:
+    st.session_state.guru_quiz = None
+if "vocab_vault" not in st.session_state:
+    st.session_state.vocab_vault = [
+        {"word": "अस्तु", "meaning": "Alright / Let it be", "dhatu": "अस्", "due": "Today"},
+        {"word": "धन्यवादः", "meaning": "Thank you", "dhatu": "धन्य + वाद्", "due": "Tomorrow"},
+        {"word": "पुनर्मिलामः", "meaning": "See you again", "dhatu": "मिल्", "due": "In 3 Days"}
+    ]
 
-# --- SIDEBAR: Profile, Settings & Rate Limiter ---
+# --- SIDEBAR: Configuration & Gamification ---
 with st.sidebar:
-    st.title("🗣️ TalkPal Sanskrit")
-    st.caption("AI Spoken Sanskrit Companion • सम्भाषणम्")
+    st.title("🚩 Sambhāṣaṇa AI")
+    st.caption("TalkPal Spoken Clone & Pāṇinian Guru")
     
     api_key = st.text_input(
         "Gemini API Key",
@@ -146,196 +174,368 @@ with st.sidebar:
     )
     
     st.write("---")
-    st.subheader("⚙️ TalkPal Audio Controls")
-    audio_speed = st.radio("Pronunciation Speed", ["Normal (सामान्यम्)", "Slow (मन्दम्)"], index=0)
+    st.subheader("🎙️ Voice & Persona Settings")
+    audio_speed = st.radio("Pacing", ["Normal (सामान्यम्)", "Slow (मन्दम्)"], index=0)
     is_slow = audio_speed.startswith("Slow")
+    tutor_voice = st.selectbox("Tutor Tone", ["Acharya (Wise & Supportive)", "Mitram (Friendly Peer)", "Pandita (Grammatical Purist)"])
     
     st.write("---")
-    st.markdown("### 🏆 Your Fluency Stats")
+    st.subheader("🏆 Daily Quests & Progress")
     c1, c2 = st.columns(2)
     c1.metric("🔥 Streak", f"{st.session_state.streak} Days")
     c2.metric("⭐ Points", f"{st.session_state.xp} XP")
-    
-    st.progress(0.70, text="Daily Speaking Goal: 70%")
+    st.progress(0.75, text="Daily Quest: 75% Complete")
+    st.caption("🎯 Goal: Complete 1 voice conversation & 1 grammar drill today.")
     
     st.write("---")
-    if st.button("🔄 Clear Active Session"):
-        st.session_state.chat_history = []
-        st.session_state.last_processed_audio_hash = ""
+    if st.button("🔄 Reset Current Session"):
+        st.session_state.talkpal_history = []
+        st.session_state.last_audio_hash = ""
+        st.session_state.guru_quiz = None
         st.rerun()
 
-# --- TOP NAVIGATION: 5 TALKPAL MODES ---
-selected_mode = st.radio(
-    "Select Mode",
-    ["💬 Chat", "🎭 Roleplays", "🔥 Debates", "📸 Photo Mode", "🧩 Custom Mode"],
-    horizontal=True,
-    label_visibility="collapsed"
-)
+# --- MASTER TOP TABS ---
+master_tab1, master_tab2 = st.tabs([
+    "🗣️ TAB 1: TALKPAL SANSKRIT MASTER",
+    "🚩 TAB 2: SANSKRIT AI GURU (ACADEMIC ENGINES)"
+])
 
-if selected_mode != st.session_state.active_mode_key:
-    st.session_state.chat_history = []
-    st.session_state.last_processed_audio_hash = ""
-    st.session_state.active_mode_key = selected_mode
-    st.rerun()
 
-# Safe API caller with automatic exponential backoff for 429 errors
-def call_gemini_safe(client, model, contents, system_instruction):
-    for attempt in range(4):
-        try:
-            resp = client.models.generate_content(
-                model=model,
-                contents=contents,
-                config={"system_instruction": system_instruction, "temperature": 0.2}
-            )
-            return resp.text, None
-        except Exception as e:
-            err_str = str(e)
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                sleep_time = 4 * (attempt + 1)
-                time.sleep(sleep_time)
-                continue
-            return None, err_str
-    return None, "Rate limit reached. Please wait 15 seconds before speaking again."
+# ==============================================================================
+# MASTER TAB 1: TALKPAL SANSKRIT MASTER
+# ==============================================================================
+with master_tab1:
+    st.subheader("🗣️ TalkPal Interactive Spoken Suite")
+    st.caption("Real-Time Spoken Practice with Speech Recognition, Word Inspector & Smart Suggestions.")
 
-# Mode system instructions
-if selected_mode == "💬 Chat":
-    mode_title = "💬 Free Chat with TalkPal Tutor"
-    mode_caption = "Converse freely in spoken Sanskrit. TalkPal analyzes your speech, translates, and offers real-time improvements."
-    system_instruction = f"""You are the TalkPal AI Sanskrit Tutor. Student Level: {level}.
-Always format your response cleanly as:
-[संस्कृतम्]: <Conversational Sanskrit reply>
-[IAST]: <Romanized transliteration>
-[English]: <English meaning>
-[💡 TalkPal Feedback]:
-- 🔍 Grammatical Correction: <Point out any Vibhakti/Lakara/Sandhi error, or state 'निर्दोषम् (Perfect!)'>
-- ✨ Better Way to Say: <An idiomatic, native-like alternative phrase>
-- 📖 Key Vocabulary: <1-2 words from the reply with root/meaning>
-"""
-    initial_greeting = "[संस्कृतम्]: हरिः ॐ! अद्य भवान्/भवती कीदृशं विषयम् अधिकृत्य सम्भाषणं कर्तुम् इच्छति?\n[IAST]: Hariḥ Om! Adya bhavān/bhavatī kīdṛśaṁ viṣayam adhikṛtya sambhāṣaṇaṁ kartum icchati?\n[English]: Hello! What topic would you like to talk about today?\n[💡 TalkPal Feedback]:\n- 🔍 Grammatical Correction: निर्दोषम् (Ready to converse!)\n- ✨ Better Way to Say: Welcome to TalkPal Chat!\n- 📖 Key Vocabulary: विषयम् (viṣayam - topic)"
+    # 5 TalkPal Modes selector
+    tp_mode = st.radio(
+        "TalkPal Learning Mode",
+        ["💬 Free Chat", "🎭 Situational Roleplay", "🔥 Debate Club", "📸 Photo Mode", "🧩 Custom Scenario"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
 
-elif selected_mode == "🎭 Roleplays":
-    mode_title = "🎭 Situational Roleplay"
-    mode_caption = "Practice real-life missions (Market, Hotel, Gurukula, Travel)."
-    system_instruction = f"""You are an immersive situational AI character in Spoken Sanskrit. Student Level: {level}.
-Keep the dialogue active and ask a question to continue the mission. Format:
-[संस्कृतम्]: <In-character Sanskrit speech>
+    if tp_mode != st.session_state.tp_mode:
+        st.session_state.talkpal_history = []
+        st.session_state.last_audio_hash = ""
+        st.session_state.tp_mode = tp_mode
+        st.rerun()
+
+    # Configure Mode Prompts & Suggestions
+    if tp_mode == "💬 Free Chat":
+        mode_header = "💬 Free Chat with TalkPal AI"
+        suggestions = ["मम नाम ... अस्ति। (My name is...)", "अहं संस्कृतं पठामि। (I study Sanskrit)", "भवान् कुत्र वसति? (Where do you live?)"]
+        sys_prompt = f"""You are the TalkPal AI Sanskrit Tutor ({tutor_voice}). Student Level: {level}.
+Always format output strictly as:
+[संस्कृतम्]: <Conversational spoken Sanskrit reply>
 [IAST]: <Transliteration>
 [English]: <Translation>
-[🎯 Mission Hint]: <What to say next to advance the conversation>
+[💡 TalkPal Feedback]:
+- 🔍 Grammatical Correction: <Error correction or 'निर्दोषम् (Perfect!)'>
+- ✨ Better Way to Say: <Idiomatic alternative expression>
+- 📖 Key Vocabulary: <1-2 words from the reply with root/meaning>
 """
-    initial_greeting = "[संस्कृतम्]: नमस्ते! विपणिं प्रति स्वागतम्। भवते/भवत्यै किं फलं वा शाकं रोचते?\n[IAST]: Namaste! Vipaṇiṁ prati svāgatam. Bhavate/bhavatyai kiṁ phalaṁ vā śākaṁ rocate?\n[English]: Greetings! Welcome to the market. Which fruit or vegetable would you like?\n[🎯 Mission Hint]: Ask for the price of fruits (e.g., phalasya mūlyaṁ kim?)."
+        greeting = "[संस्कृतम्]: हरिः ॐ! अद्य भवान्/भवती कीदृशं विषयम् अधिकृत्य सम्भाषणं कर्तुम् इच्छति?\n[IAST]: Hariḥ Om! Adya bhavān/bhavatī kīdṛśaṁ viṣayam adhikṛtya sambhāṣaṇaṁ kartum icchati?\n[English]: Hello! What topic would you like to talk about today?\n[💡 TalkPal Feedback]:\n- 🔍 Grammatical Correction: निर्दोषम् (Ready!)\n- ✨ Better Way to Say: Welcome to TalkPal Chat!\n- 📖 Key Vocabulary: विषयम् (viṣayam - topic)"
 
-elif selected_mode == "🔥 Debates":
-    mode_title = "🔥 TalkPal Debate Club (शास्त्रार्थः)"
-    mode_caption = "Sharpen your spoken argumentation. Defend your point in Sanskrit."
-    system_instruction = f"""You are a master Sanskrit debater. Student Level: {level}.
-Politely challenge the student's argument. Format:
+    elif tp_mode == "🎭 Situational Roleplay":
+        mode_header = "🎭 Situational Roleplay Mission"
+        scenario = st.selectbox("Roleplay Setting:", ["Vegetable Market (शाकक्रयणम्)", "Gurukula / School (पाठशाला)", "Train Station (रेलस्थानकम्)", "Hotel Check-In (अतिथि-गृहम्)"])
+        suggestions = ["अस्य मूल्यं किम्? (How much is this?)", "किञ्चित् न्यूनं करोतु। (Please reduce the price)", "जलम् आवश्यकम्। (I need water)"]
+        sys_prompt = f"""You are an AI character in roleplay: '{scenario}'. Level: {level}.
+Format:
+[संस्कृतम्]: <In-character dialogue>
+[IAST]: <Transliteration>
+[English]: <Translation>
+[🎯 Mission Objective]: <Clear prompt on what the user should respond next>
+"""
+        greeting = f"[संस्कृतम्]: नमस्ते! {scenario} प्रति स्वागतम्। कथं साहाय्यं करवाणि?\n[IAST]: Namaste! Svāgatam. Kathaṁ sāhāyyaṁ karavāṇi?\n[English]: Welcome! How may I assist you?\n[🎯 Mission Objective]: Introduce yourself and state what you need."
+
+    elif tp_mode == "🔥 Debate Club":
+        mode_header = "🔥 TalkPal Debate Club (शास्त्रार्थः)"
+        debate_topic = st.selectbox("Debate Topic:", ["Gurukula vs Modern Schools", "Grammar First vs Speaking First", "AI: Boon or Curse?"])
+        suggestions = ["मम मतम् अस्ति यत्... (My opinion is that...)", "एतत् न उचितम्, यतः... (This is not right, because...)", "अहं सहमतः अस्मि। (I agree)"]
+        sys_prompt = f"""You are a master Sanskrit debater challenging the student on: '{debate_topic}'. Level: {level}.
+Politely challenge their points using logic. Format:
 [संस्कृतम्]: <Debate rebuttal>
 [IAST]: <Transliteration>
 [English]: <Translation>
-[🔥 Counter Challenge]: <Question challenging their logic>
+[🔥 Counter Challenge]: <Sharp counter-question>
 """
-    initial_greeting = "[संस्कृतम्]: अस्मिन् शास्त्रार्थे भवतः स्वागतम्। वदतु, आधुनिक-शिक्षण-पद्धतिः श्रेष्ठा वा पारम्परिकी गुरुकुल-पद्धतिः?\n[IAST]: Asmin śāstrārthe bhavataḥ svāgatam. Vadatu, ādhunika-śikṣaṇa-paddhatiḥ śreṣṭhā vā pārampārikī gurukula-paddhatiḥ?\n[English]: Welcome to the debate. Tell me, is the modern education system better or traditional Gurukula?\n[🔥 Counter Challenge]: State your position with one clear reason."
+        greeting = f"[संस्कृतम्]: शास्त्रार्थे स्वागतम्! विषये '{debate_topic}' भवतः किं मतम्?\n[IAST]: Śāstrārthe svāgatam! Bhavataḥ kiṁ matam?\n[English]: Welcome to the debate! What is your argument?\n[🔥 Counter Challenge]: State your stance clearly."
 
-else:
-    mode_title = f"{selected_mode} Simulation"
-    mode_caption = "Interactive spoken Sanskrit practice."
-    system_instruction = f"You are TalkPal Sanskrit Tutor for level {level}. Converse in simple Sanskrit."
-    initial_greeting = "[संस्कृतम्]: हरिः ॐ! वदतु, कथम् अस्ति?\n[IAST]: Hariḥ Om! Vadatu, katham asti?\n[English]: Hello! Tell me, how are you?"
+    elif tp_mode == "📸 Photo Mode":
+        mode_header = "📸 Photo Mode (चित्रवर्णनम्)"
+        scene_desc = st.selectbox("Scene to describe:", ["Ashrama in Himalayas with deer and trees", "Village fair with temple and sweet stalls", "Classroom with students writing on palm leaves"])
+        suggestions = ["अस्मिन् चित्रे ... दृश्यते। (In this picture ... is seen)", "अत्र बहवः जनाः सन्ति। (Here are many people)", "वृक्षात् फलानि पतन्ति। (Fruits fall from tree)"]
+        sys_prompt = f"""Assess student's spoken description of scene: '{scene_desc}'. Level: {level}.
+Score descriptive richness (0-100%) and case agreements. Provide a model description.
+"""
+        greeting = f"[संस्कृतम्]: एतत् चित्रं पश्यतु ({scene_desc})। चित्रे किं किं अस्ति इति वदतु।\n[IAST]: Etat citraṁ paśyatu. Citre kiṁ kiṁ asti iti vadatu.\n[English]: Look at this scene. Describe what you see in 3-4 sentences."
 
-if len(st.session_state.chat_history) == 0:
-    st.session_state.chat_history = [{"role": "model", "content": initial_greeting}]
-
-st.subheader(mode_title)
-st.caption(mode_caption)
-
-# --- DISPLAY CHAT HISTORY WITH TALKPAL CARDS ---
-for msg in st.session_state.chat_history:
-    if msg["role"] == "model":
-        st.markdown('<div class="talkpal-bubble-ai"><span class="talkpal-pill">🤖 TalkPal Tutor</span>', unsafe_allow_html=True)
-        st.markdown(msg["content"])
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if "[संस्कृतम्]:" in msg["content"]:
-            line = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-            play_sanskrit_audio(line, slow_mode=is_slow)
     else:
-        st.markdown('<div class="talkpal-bubble-user"><span class="talkpal-pill" style="background:#DCFCE7; color:#15803D;">👤 You</span>', unsafe_allow_html=True)
-        st.markdown(msg["content"])
-        st.markdown('</div>', unsafe_allow_html=True)
+        mode_header = "🧩 Custom Persona Simulation"
+        custom_char = st.text_input("Who is the AI?", value="Chanakya")
+        suggestions = ["प्रणामः आचार्य! (Salutations Acharya)", "एकं संशयं प्रष्टुम् इच्छामि। (I wish to ask a doubt)", "उपदेशं ददातु। (Give counsel)"]
+        sys_prompt = f"""Roleplay as {custom_char}. Level: {level}. Converse in character in Sanskrit with IAST & English."""
+        greeting = f"[संस्कृतम्]: हरिः ॐ! अहं {custom_char} अस्मि। किं वक्तुम् इच्छति भवान्?\n[IAST]: Hariḥ Om! Ahaṁ {custom_char} asmi. Kiṁ vaktum icchati bhavān?\n[English]: Hello! I am {custom_char}. What do you wish to speak about?"
 
-# --- PERMANENT VOICE DOCK (WITH DEBOUNCE CACHE TO STOP 429) ---
-st.markdown('<div class="voice-dock">', unsafe_allow_html=True)
-st.markdown("🎙️ **Tap the Mic to Speak your Reply / वदतु (Voice Reply):**")
-audio_reply = st.audio_input("Record your spoken reply:", key=f"rec_dock_{len(st.session_state.chat_history)}")
-st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"#### {mode_header}")
 
-# Process Audio Only Once Per Recording (Prevents 429 loops)
-if audio_reply is not None:
-    audio_bytes = audio_reply.getvalue()
-    audio_hash = hashlib.md5(audio_bytes).hexdigest()
+    # Initialize greeting
+    if len(st.session_state.talkpal_history) == 0:
+        st.session_state.talkpal_history = [{"role": "model", "content": greeting}]
 
-    if audio_hash != st.session_state.last_processed_audio_hash:
-        st.session_state.last_processed_audio_hash = audio_hash
+    # Render Dialogue History
+    for msg in st.session_state.talkpal_history:
+        if msg["role"] == "model":
+            st.markdown('<div class="talkpal-bubble-ai"><span class="talkpal-pill">🤖 TalkPal AI</span>', unsafe_allow_html=True)
+            st.markdown(msg["content"])
+            st.markdown('</div>', unsafe_allow_html=True)
+            if "[संस्कृतम्]:" in msg["content"]:
+                line = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                play_sanskrit_audio(line, slow_mode=is_slow)
+        else:
+            st.markdown('<div class="talkpal-bubble-user"><span class="talkpal-pill" style="background:#DCFCE7; color:#15803D;">👤 You</span>', unsafe_allow_html=True)
+            st.markdown(msg["content"])
+            st.markdown('</div>', unsafe_allow_html=True)
 
+    # Smart Suggestion Chips
+    st.write("💡 **TalkPal Smart Reply Suggestions:**")
+    cols_sug = st.columns(len(suggestions))
+    for i, sug in enumerate(suggestions):
+        with cols_sug[i]:
+            st.markdown(f'<span class="suggestion-chip">{sug}</span>', unsafe_allow_html=True)
+
+    # Word-by-Word Tap Inspector
+    with st.expander("🔍 Tap to Inspect Any Word (Word-by-Word Breakdown)"):
+        inspect_word = st.text_input("Enter any Sanskrit word from above to inspect:", placeholder="e.g. गच्छामि, पुस्तकस्य, पठित्वा")
+        if st.button("Inspect Word"):
+            if api_key and inspect_word:
+                client = genai.Client(api_key=api_key)
+                with st.spinner("Analyzing root and morphology..."):
+                    resp = client.models.generate_content(
+                        model="gemini-3.6-flash",
+                        contents=[{"role": "user", "parts": [{"text": f"Analyze Sanskrit word '{inspect_word}'. Output: Root/Pratipadika, Vibhakti/Pratyaya/Lakara/Purusha, English meaning, and Telugu/Hindi meaning."}]}],
+                    )
+                    st.info(resp.text)
+
+    # Dedicated Voice Recording Dock
+    st.markdown('<div class="voice-dock">', unsafe_allow_html=True)
+    st.markdown("🎙️ **Tap to Speak / वदतु (Voice Reply):**")
+    audio_reply = st.audio_input("Record voice reply:", key=f"tp_rec_{len(st.session_state.talkpal_history)}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if audio_reply is not None:
+        audio_bytes = audio_reply.getvalue()
+        audio_hash = hashlib.md5(audio_bytes).hexdigest()
+
+        if audio_hash != st.session_state.last_audio_hash:
+            st.session_state.last_audio_hash = audio_hash
+            if not api_key:
+                st.warning("⚠️ Enter Gemini API key in sidebar.")
+                st.stop()
+
+            client = genai.Client(api_key=api_key)
+            st.session_state.talkpal_history.append({"role": "user", "content": "🎙️ *[Spoken Voice Response]*"})
+            st.session_state.xp += 15
+
+            with st.spinner("TalkPal is listening and evaluating..."):
+                reply, err = call_gemini_safe(
+                    client=client,
+                    model="gemini-3.6-flash",
+                    contents=[{
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
+                            {"text": f"{sys_prompt}\nTranscribe spoken audio, reply in Sanskrit with translation and feedback."}
+                        ]
+                    }],
+                    system_instruction=sys_prompt
+                )
+                if reply:
+                    st.session_state.talkpal_history.append({"role": "model", "content": reply})
+                    st.rerun()
+                else:
+                    st.error(f"⚠️ {err}")
+
+    # Fallback Text Input
+    if text_input := st.chat_input("Or type in Sanskrit / English (e.g. mama nama, aham pathami...)..."):
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter Gemini API key in sidebar.")
             st.stop()
 
         client = genai.Client(api_key=api_key)
-        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Voice Response]*"})
-        st.session_state.xp += 15
+        is_dev = any("\u0900" <= char <= "\u097f" for char in text_input)
+        if not is_dev:
+            try:
+                converted = transliterate(text_input, sanscript.ITRANS, sanscript.DEVANAGARI)
+                user_text = f"{text_input} ({converted})"
+            except Exception:
+                user_text = text_input
+        else:
+            user_text = text_input
 
-        with st.spinner("TalkPal is listening and evaluating..."):
-            reply, err = call_gemini_safe(
-                client=client,
-                model="gemini-3.6-flash",
-                contents=[{
-                    "role": "user",
-                    "parts": [
-                        {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                        {"text": f"{system_instruction}\nListen to the student's spoken audio, transcribe what they said, reply in Sanskrit with translation, and provide grammatical feedback."}
-                    ]
-                }],
-                system_instruction=system_instruction
-            )
+        st.session_state.talkpal_history.append({"role": "user", "content": user_text})
+        st.session_state.xp += 5
+
+        contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.talkpal_history]
+
+        with st.spinner("TalkPal is typing..."):
+            reply, err = call_gemini_safe(client, "gemini-3.6-flash", contents, sys_prompt)
             if reply:
-                st.session_state.chat_history.append({"role": "model", "content": reply})
+                st.session_state.talkpal_history.append({"role": "model", "content": reply})
                 st.rerun()
             else:
                 st.error(f"⚠️ {err}")
 
-# --- TEXT INPUT (ALTERNATIVE) ---
-if text_input := st.chat_input("Or type here in Sanskrit or English (e.g. mama nama, aham pathami...)..."):
-    if not api_key:
-        st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
-        st.stop()
 
-    client = genai.Client(api_key=api_key)
-    is_dev = any("\u0900" <= char <= "\u097f" for char in text_input)
-    if not is_dev:
-        try:
-            converted = transliterate(text_input, sanscript.ITRANS, sanscript.DEVANAGARI)
-            user_text = f"{text_input} ({converted})"
-        except Exception:
-            user_text = text_input
-    else:
-        user_text = text_input
+# ==============================================================================
+# MASTER TAB 2: SANSKRIT AI GURU (ACADEMIC & PEDAGOGICAL ENGINES)
+# ==============================================================================
+with master_tab2:
+    st.subheader("🚩 Sanskrit AI Guru Academic Suite")
+    st.caption("Pāṇinian Grammar • Universal Translation • Śikṣā Shadowing • Parīkṣā Engine")
 
-    st.session_state.chat_history.append({"role": "user", "content": user_text})
-    st.session_state.xp += 5
+    guru_subtab = st.selectbox(
+        "Select Guru Engine",
+        [
+            "🌐 Universal Translation Engine (उभय-अनुवादकः)",
+            "🧩 Pāṇinian Vyākaraṇa Tool (पाणिनीय-व्याकरणम्)",
+            "🎙️ Phonetic Śikṣā & Pronunciation Coach (शिक्षा-परीक्षकः)",
+            "📝 Interactive Parīkṣā & Assessment (परीक्षा)",
+            "🧠 SRS Vocabulary Vault (शब्दकोशः)"
+        ]
+    )
 
-    contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.chat_history]
+    # 1. UNIVERSAL TRANSLATOR
+    if "Universal Translation" in guru_subtab:
+        st.markdown("### 🌐 Universal Bidirectional Translation")
+        t_dir = st.radio("Direction", ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"], horizontal=True)
+        if t_dir == "Sanskrit ➔ Any Language":
+            t_lang = st.selectbox("Target Language", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"])
 
-    with st.spinner("TalkPal is typing..."):
-        reply, err = call_gemini_safe(
-            client=client,
-            model="gemini-3.6-flash",
-            contents=contents,
-            system_instruction=system_instruction
+        t_text = st.text_area("Enter sentence to translate:", height=80)
+        st.write("🎙️ *Or speak the sentence:*")
+        t_voice = st.audio_input("Speak to translate:", key="guru_trans_voice")
+
+        if st.button("Translate / अनुवादं कुरु") or (t_voice is not None):
+            if not api_key:
+                st.warning("⚠️ Enter Gemini API key.")
+                st.stop()
+            client = genai.Client(api_key=api_key)
+            with st.spinner("Translating..."):
+                if t_dir == "Any Language ➔ Sanskrit":
+                    p = f"""Translate into Sanskrit for level {level}.
+MANDATORY:
+### 🪶 पूर्णवाक्यम्:
+**संस्कृतम् (Devanagari):** <FULL SENTENCE>
+**IAST:** <IAST>
+**English:** <English>
+---
+### 🔍 व्याकरणम्:
+- Padaccheda and Vibhakti breakdown
+"""
+                else:
+                    p = f"""Translate this Sanskrit into {t_lang} and English with Sandhi splits and word-by-word meanings."""
+
+                payload = [{"inline_data": {"mime_type": "audio/wav", "data": t_voice.getvalue()}}, {"text": p}] if t_voice else [{"text": f"{p}\nInput: {t_text}"}]
+                resp = client.models.generate_content(model="gemini-3.6-flash", contents=[{"role": "user", "parts": payload}])
+                st.markdown(resp.text)
+                if "संस्कृतम् (Devanagari):" in resp.text:
+                    line = resp.text.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
+                    st.write("🔊 **उच्चारणम्:**")
+                    play_sanskrit_audio(line)
+
+    # 2. PĀṆINIAN VYĀKARAṆA ENGINE
+    elif "Pāṇinian Vyākaraṇa" in guru_subtab:
+        st.markdown("### 🧩 Pāṇinian Computational Grammar Engine")
+        g_tool = st.selectbox(
+            "Grammar Tool:",
+            [
+                "Sandhi Splitter & Sūtras (सन्धि-विच्छेदः)",
+                "Shabdarūpa Declension Tables (शब्दरूपाणि - 8 Vibhaktis)",
+                "Dhāturūpa Conjugation (धातुरूपाणि - 10 Lakāras)",
+                "Samāsa Vigraha (समास-विग्रहः)"
+            ]
         )
-        if reply:
-            st.session_state.chat_history.append({"role": "model", "content": reply})
-            st.rerun()
-        else:
-            st.error(f"⚠️ {err}")
+        g_term = st.text_input("Enter Term (e.g. राम, भू, गम्, देवेन्द्रः):")
+        if st.button("Analyze Grammar"):
+            if not api_key or not g_term:
+                st.warning("Enter API key and term.")
+                st.stop()
+            client = genai.Client(api_key=api_key)
+            with st.spinner("Executing grammatical derivations..."):
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{"role": "user", "parts": [{"text": f"Provide comprehensive Paninian analysis for tool: {g_tool}, input: {g_term}. Include Astadhyayi sutras, clear markdown tables, and IAST."}]}]
+                )
+                st.markdown(resp.text)
+
+    # 3. PHONETIC ŚIKṢĀ COACH
+    elif "Phonetic Śikṣā" in guru_subtab:
+        st.markdown("### 🎙️ Pāṇinīya Śikṣā Phonetic Evaluator")
+        drill_phrase = st.selectbox(
+            "Target Phrase to Shadow:",
+            [
+                "सत्यं वद, धर्मं चर। (Speak truth, walk in righteousness)",
+                "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
+                "वृक्षात् फलानि भूमौ पतन्ति। (Fruits fall - check Mahāprāṇa 'ph')",
+                "अहं प्रतिदिनं प्रातः पञ्चवादने उत्तिष्ठामि। (Retroflex 'ṣṭh' check)"
+            ]
+        )
+        clean_target = drill_phrase.split('(')[0].strip()
+        st.write("🔊 **Master Audio:**")
+        play_sanskrit_audio(clean_target)
+        
+        sh_audio = st.audio_input("Record chanting:", key="shiksha_voice")
+        if sh_audio is not None:
+            if not api_key:
+                st.warning("Enter API key.")
+                st.stop()
+            client = genai.Client(api_key=api_key)
+            with st.spinner("Analyzing phonetic acoustics..."):
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "audio/wav", "data": sh_audio.getvalue()}},
+                            {"text": f"Evaluate student's pronunciation against target: '{clean_target}'. Provide 0-100% score, articulation point breakdown (Dantya/Murdhanya), Mahaprana aspiration, and practical tongue placement tip."}
+                        ]
+                    }]
+                )
+                st.markdown(resp.text)
+
+    # 4. INTERACTIVE PARĪKṢĀ
+    elif "Interactive Parīkṣā" in guru_subtab:
+        st.markdown("### 📝 Daily Sanskrit Parīkṣā (Exam Engine)")
+        q_topic = st.selectbox("Topic", ["Vibhakti Agreement", "Verb Conjugation", "Sandhi Rules", "Spoken Sanskrit Translation"])
+        if st.button("⚡ Generate New Test"):
+            if not api_key:
+                st.warning("Enter API key.")
+                st.stop()
+            client = genai.Client(api_key=api_key)
+            with st.spinner("Creating test..."):
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{"role": "user", "parts": [{"text": f"Generate a 3-question MCQ quiz on '{q_topic}' for Level: {level}. For each question: provide Devanagari, IAST, 4 options (A,B,C,D), correct answer, and Pāṇinian explanation."}]}]
+                )
+                st.session_state.guru_quiz = resp.text
+        if st.session_state.guru_quiz:
+            st.markdown(st.session_state.guru_quiz)
+
+    # 5. SRS VOCABULARY VAULT
+    elif "SRS Vocabulary" in guru_subtab:
+        st.markdown("### 🧠 Spaced Repetition (SRS) Vocabulary Vault")
+        for item in st.session_state.vocab_vault:
+            st.markdown(f"- **{item['word']}** : {item['meaning']} | *Root:* `{item['dhatu']}` | ⏳ *Due:* `{item['due']}`")
+        with st.expander("➕ Add Word to Vault"):
+            nw = st.text_input("Sanskrit Word:")
+            nm = st.text_input("Meaning:")
+            nd = st.text_input("Root / Dhātu:")
+            if st.button("Save Word"):
+                if nw and nm:
+                    st.session_state.vocab_vault.append({"word": nw, "meaning": nm, "dhatu": nd if nd else nw, "due": "Tomorrow"})
+                    st.success("Word added to vault!")
+                    st.rerun()
