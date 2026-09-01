@@ -30,9 +30,41 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-ACTIVE_MODEL = "gemini-3.6-flash"
+# Resilient Model Cascade (Primary -> Secondary -> Fallback)
+MODEL_CASCADE = ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "sambhāṣaṇa_concurrency.db")
+
+# --- RESILIENT GEMINI CALLER (AUTOMATIC 429 QUOTA FAILOVER) ---
+def generate_resilient_content(client, contents, config=None, is_json=False):
+    """
+    Tries primary model first. If a 429 Quota or 404 error occurs,
+    automatically falls back down the model cascade seamlessly.
+    """
+    last_error = None
+    for model_candidate in MODEL_CASCADE:
+        try:
+            cfg = config.copy() if config else {}
+            if is_json:
+                cfg["response_mime_type"] = "application/json"
+                
+            resp = client.models.generate_content(
+                model=model_candidate,
+                contents=contents,
+                config=cfg if cfg else None
+            )
+            return resp.text, model_candidate
+        except Exception as e:
+            err_str = str(e)
+            last_error = e
+            # If rate-limited (429) or model missing (404), continue to next model in cascade
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "404" in err_str:
+                time.sleep(0.5)
+                continue
+            else:
+                raise e
+    raise last_error
 
 # --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode) ---
 def get_db_connection():
@@ -358,7 +390,7 @@ def split_into_sentences(text: str, max_limit=50):
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • 50-Sentence Batch Translator • High Latency Optimization</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • 50-Sentence Batch Translator • Quota Auto-Failover</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -501,8 +533,8 @@ with tab_roleplay:
             with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
                 t_start = time.time()
                 try:
-                    resp = client.models.generate_content(
-                        model=ACTIVE_MODEL,
+                    reply_text, used_model = generate_resilient_content(
+                        client=client,
                         contents=[{
                             "role": "user",
                             "parts": [
@@ -512,11 +544,10 @@ with tab_roleplay:
                         }],
                         config={"temperature": 0.2, "max_output_tokens": 500}
                     )
-                    reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
                     
                     st.markdown(reply_text)
-                    st.caption(f"⚡ *Response Latency: {latency}s*")
+                    st.caption(f"⚡ *Response Latency: {latency}s (Engine: {used_model})*")
                     
                     full_s = extract_complete_sanskrit_speech(reply_text)
                     if full_s:
@@ -548,16 +579,15 @@ with tab_roleplay:
             with st.spinner("चिन्तयति..."):
                 t_start = time.time()
                 try:
-                    resp = client.models.generate_content(
-                        model=ACTIVE_MODEL,
+                    reply_text, used_model = generate_resilient_content(
+                        client=client,
                         contents=contents,
                         config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 500}
                     )
-                    reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
                     
                     st.markdown(reply_text)
-                    st.caption(f"⚡ *Response Latency: {latency}s*")
+                    st.caption(f"⚡ *Response Latency: {latency}s (Engine: {used_model})*")
                     
                     full_s = extract_complete_sanskrit_speech(reply_text)
                     if full_s:
@@ -608,13 +638,14 @@ Example:
 Text:
 {extracted_text[:4000]}
 """
-                    resp = client.models.generate_content(
-                        model=ACTIVE_MODEL,
+                    resp_text, _ = generate_resilient_content(
+                        client=client,
                         contents=[{"role": "user", "parts": [{"text": PROMPT_BULK}]}],
-                        config={"temperature": 0.1, "response_mime_type": "application/json"}
+                        config={"temperature": 0.1},
+                        is_json=True
                     )
                     
-                    parsed_vocab = json.loads(resp.text)
+                    parsed_vocab = json.loads(resp_text)
                     added = save_vault_bulk(st.session_state.user_session_id, parsed_vocab)
                     st.success(f"🎉 Successfully saved {added} words into your Database Vault!")
                     st.rerun()
@@ -669,8 +700,8 @@ with tab_shiksha:
         client = genai.Client(api_key=api_key)
         with st.spinner("Analyzing phonetic acoustics..."):
             try:
-                resp = client.models.generate_content(
-                    model=ACTIVE_MODEL,
+                resp_text, _ = generate_resilient_content(
+                    client=client,
                     contents=[{
                         "role": "user",
                         "parts": [
@@ -680,7 +711,7 @@ with tab_shiksha:
                     }],
                     config={"max_output_tokens": 400}
                 )
-                st.markdown(resp.text)
+                st.markdown(resp_text)
                 update_user_xp(st.session_state.user_session_id, 15)
             except Exception as e:
                 st.error(f"Error: {str(e)}")
@@ -699,12 +730,12 @@ with tab_chandas:
         client = genai.Client(api_key=api_key)
         with st.spinner("Analyzing scansion..."):
             try:
-                res = client.models.generate_content(
-                    model=ACTIVE_MODEL,
+                res_text, _ = generate_resilient_content(
+                    client=client,
                     contents=[{"role": "user", "parts": [{"text": f"Perform Pingala Chandaḥ scansion on: '{verse_input}'. Identify metre name (Anuṣṭubh, Triṣṭubh, etc.), Laghu (।) / Guru (ऽ) syllabic mapping, Gana breakdown, and Vedic Svara rules."}]}],
                     config={"max_output_tokens": 450}
                 )
-                st.markdown(res.text)
+                st.markdown(res_text)
                 update_user_xp(st.session_state.user_session_id, 20)
             except Exception as e:
                 st.error(f"Error: {str(e)}")
@@ -740,9 +771,8 @@ with tab_trans:
             st.stop()
         
         client = genai.Client(api_key=api_key)
-        with st.spinner(f"Translating {len(detected_sentences)} sentences sentence-by-sentence with grammatical Sandhi split..."):
+        with st.spinner(f"Translating {len(detected_sentences)} sentences with automatic rate-limit failover..."):
             try:
-                # Prepare JSON batch payload for Gemini-3.6-Flash
                 BATCH_PROMPT = f"""You are a Sanskrit Grammatical Translation Engine.
 Translate the following array of {len(detected_sentences)} sentences individually.
 Direction: {trans_direction} (Target: {target_lang}).
@@ -759,14 +789,15 @@ Return a STRICT JSON array of objects with exact keys:
 
 Ensure pure, natural, idiomatic translation for every single sentence.
 """
-                resp = client.models.generate_content(
-                    model=ACTIVE_MODEL,
+                resp_text, used_model = generate_resilient_content(
+                    client=client,
                     contents=[{"role": "user", "parts": [{"text": BATCH_PROMPT}]}],
-                    config={"temperature": 0.1, "response_mime_type": "application/json"}
+                    config={"temperature": 0.1},
+                    is_json=True
                 )
                 
-                batch_results = json.loads(resp.text)
-                st.success(f"🎉 Successfully translated all {len(batch_results)} sentences!")
+                batch_results = json.loads(resp_text)
+                st.success(f"🎉 Successfully translated all {len(batch_results)} sentences! (Engine: `{used_model}`)")
                 
                 # --- DISPLAY SENTENCE-BY-SENTENCE RESULTS ---
                 for item in batch_results:
@@ -796,7 +827,6 @@ Ensure pure, natural, idiomatic translation for every single sentence.
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Individual audio player for each translated sentence
                     if trans_direction.startswith("Any"):
                         audio_b64 = get_speech_audio_b64(tr_s, t_info["tld"], t_info["slow"])
                         if audio_b64:
