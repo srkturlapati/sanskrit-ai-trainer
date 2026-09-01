@@ -7,9 +7,10 @@ import datetime
 import base64
 import json
 import re
+import random
 from pypdf import PdfReader
 
-# Enforce UTF-8 encoding across all runtime environments
+# Enforce UTF-8 encoding across runtime environments
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -25,7 +26,7 @@ import streamlit.components.v1 as components
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Sambhāṣaṇa AI Pro | सम्भाषण-प्रशिक्षकः",
+    page_title="Saṃskṛta-Krīḍā-Guruḥ | संस्कृत-क्रीडा-गुरुः",
     page_icon="🚩",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -33,9 +34,9 @@ st.set_page_config(
 
 ACTIVE_MODEL = "gemini-3.6-flash"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(BASE_DIR, "sambhāṣaṇa_concurrency.db")
+DB_FILE = os.path.join(BASE_DIR, "sanskrit_guru_master.db")
 
-# --- RESILIENT GEMINI CALLER WITH AUTOMATIC RETRY ---
+# --- RESILIENT GEMINI CALLER ---
 def generate_gemini_content(client, contents, config=None, is_json=False, max_retries=3):
     cfg = config.copy() if config else {}
     if is_json:
@@ -56,7 +57,7 @@ def generate_gemini_content(client, contents, config=None, is_json=False, max_re
                 continue
             raise e
 
-# --- DATABASE PERSISTENCE LAYER WITH AUTO-MIGRATION ---
+# --- DATABASE PERSISTENCE LAYER ---
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -68,8 +69,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
-    
-    # 1. User Profile Table
     c.execute('''
         CREATE TABLE IF NOT EXISTS user_profile (
             id TEXT PRIMARY KEY,
@@ -80,8 +79,6 @@ def init_db():
             last_active TEXT
         )
     ''')
-    
-    # 2. Vocab Vault Table (Base Schema)
     c.execute('''
         CREATE TABLE IF NOT EXISTS vocab_vault (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,25 +87,13 @@ def init_db():
             meaning TEXT,
             dhatu TEXT,
             level TEXT,
-            review_due TEXT
+            review_due TEXT,
+            interval_days INTEGER DEFAULT 1,
+            repetition_count INTEGER DEFAULT 0,
+            next_review_date TEXT,
+            UNIQUE(user_id, word)
         )
     ''')
-    
-    # Auto-Migration: Add newly added columns to existing tables safely
-    c.execute("PRAGMA table_info(vocab_vault)")
-    existing_cols = [col[1] for col in c.fetchall()]
-    
-    if "interval_days" not in existing_cols:
-        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN interval_days INTEGER DEFAULT 1")
-        except Exception: pass
-    if "repetition_count" not in existing_cols:
-        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN repetition_count INTEGER DEFAULT 0")
-        except Exception: pass
-    if "next_review_date" not in existing_cols:
-        try: c.execute("ALTER TABLE vocab_vault ADD COLUMN next_review_date TEXT")
-        except Exception: pass
-        
-    # 3. Feedback Logs Table
     c.execute('''
         CREATE TABLE IF NOT EXISTS feedback_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,39 +107,20 @@ def init_db():
         )
     ''')
     
-    # Seed Leaderboard Users
+    # Safe Column Migration
+    c.execute("PRAGMA table_info(vocab_vault)")
+    existing_cols = [col[1] for col in c.fetchall()]
+    for col_name, col_type in [("interval_days", "INTEGER DEFAULT 1"), ("repetition_count", "INTEGER DEFAULT 0"), ("next_review_date", "TEXT")]:
+        if col_name not in existing_cols:
+            try: c.execute(f"ALTER TABLE vocab_vault ADD COLUMN {col_name} {col_type}")
+            except Exception: pass
+
+    # Seed Default User
     today_str = str(datetime.date.today())
     c.execute('SELECT COUNT(*) FROM user_profile')
     if c.fetchone()[0] == 0:
-        seed_users = [
-            ("user_acharya_vidya", "विद्वान् राघवः (Scholar Raghava)", "Advanced (उत्तमा)", 18, 920, today_str),
-            ("user_gargi_aspirant", "गार्गी प्रियंवदा (Gargi P.)", "Advanced (उत्तमा)", 14, 760, today_str),
-            ("user_soma_dev", "सोमदेव शास्त्री (Somadeva)", "Intermediate (मध्यमा)", 9, 440, today_str),
-            ("user_ananya_learner", "अनन्या शर्मा (Ananya S.)", "Intermediate (मध्यमा)", 6, 280, today_str),
-            ("user_balaka_aarav", "बालकः आरवः (Aarav)", "Beginner (प्रथमा)", 3, 140, today_str),
-            ("default_user", "भवतः विवरणम् (You)", "Beginner (प्रथमा)", 1, 100, today_str)
-        ]
-        c.executemany('''
-            INSERT OR IGNORE INTO user_profile (id, username, level, streak, xp, last_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', seed_users)
-
-    # Seed Default Vocabulary
-    c.execute('SELECT COUNT(*) FROM vocab_vault WHERE user_id = "default_user"')
-    if c.fetchone()[0] == 0:
-        starter_vocab = [
-            ("default_user", "अस्तु", "Alright / Let it be", "अस् (to be)", "Beginner", "Today", 1, 0, today_str),
-            ("default_user", "धन्यवादः", "Thank you", "धन्य + वाद्", "Beginner", "Today", 1, 0, today_str),
-            ("default_user", "पुनर्मिलामः", "See you again", "मिल् (to meet)", "Beginner", "Today", 1, 0, today_str),
-            ("default_user", "किम्", "What / Why", "सर्वनामन्", "Beginner", "Today", 1, 0, today_str),
-            ("default_user", "कुत्र", "Where", "अव्ययम्", "Beginner", "Today", 1, 0, today_str)
-        ]
-        c.executemany('''
-            INSERT OR IGNORE INTO vocab_vault 
-            (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', starter_vocab)
-
+        c.execute('INSERT OR IGNORE INTO user_profile VALUES ("default_user", "संस्कृत-जिज्ञासुः (Learner)", "Beginner (प्रथमा)", 1, 150, ?)', (today_str,))
+    
     conn.commit()
     conn.close()
 
@@ -169,32 +135,12 @@ def get_user_stats(uid):
     c.execute('SELECT streak, xp, level, username FROM user_profile WHERE id = ?', (uid,))
     res = c.fetchone()
     if not res:
-        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "भवतः विवरणम् (You)", "Beginner (प्रथमा)", 1, 100, ?)',
+        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "संस्कृत-जिज्ञासुः", "Beginner (प्रथमा)", 1, 150, ?)',
                   (uid, str(datetime.date.today())))
         conn.commit()
-        res = (1, 100, "Beginner (प्रथमा)", "भवतः विवरणम् (You)")
+        res = (1, 150, "Beginner (प्रथमा)", "संस्कृत-जिज्ञासुः")
     conn.close()
     return res
-
-def get_global_leaderboard():
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute('''
-        SELECT username, level, streak, xp, id 
-        FROM user_profile 
-        ORDER BY xp DESC 
-        LIMIT 25
-    ''')
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-def update_user_level(uid, new_level):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute('UPDATE user_profile SET level = ? WHERE id = ?', (new_level, uid))
-    conn.commit()
-    conn.close()
 
 def update_user_xp(uid, xp_add=10):
     conn = get_db_connection()
@@ -202,102 +148,6 @@ def update_user_xp(uid, xp_add=10):
     c.execute('UPDATE user_profile SET xp = xp + ? WHERE id = ?', (xp_add, uid))
     conn.commit()
     conn.close()
-
-def get_due_flashcards(uid):
-    conn = get_db_connection()
-    c = conn.cursor()
-    today_str = str(datetime.date.today())
-    c.execute('''
-        SELECT id, word, meaning, dhatu, level, interval_days, repetition_count 
-        FROM vocab_vault 
-        WHERE user_id = ? AND (next_review_date <= ? OR next_review_date IS NULL OR review_due = 'Today')
-        ORDER BY id ASC
-    ''', (uid, today_str))
-    rows = c.fetchall()
-    conn.close()
-    return [{"id": r[0], "word": r[1], "meaning": r[2], "dhatu": r[3], "level": r[4], "interval": r[5] or 1, "reps": r[6] or 0} for r in rows]
-
-def get_all_vault_words(uid):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute('SELECT word, meaning, dhatu, level, review_due FROM vocab_vault WHERE user_id = ? ORDER BY id DESC', (uid,))
-    rows = c.fetchall()
-    conn.close()
-    return [{"word": r[0], "meaning": r[1], "dhatu": r[2], "level": r[3], "review_due": r[4]} for r in rows]
-
-def update_srs_rating(card_id, rating, current_interval, current_reps, uid):
-    conn = get_db_connection()
-    c = conn.cursor()
-    today = datetime.date.today()
-    
-    if rating == "again":
-        new_interval = 1
-        new_reps = 0
-        next_date = today
-        review_due_label = "Today"
-        xp_gain = 0
-    elif rating == "hard":
-        new_interval = max(1, int(current_interval * 1.2))
-        new_reps = current_reps + 1
-        next_date = today + datetime.timedelta(days=new_interval)
-        review_due_label = f"In {new_interval}d"
-        xp_gain = 5
-    elif rating == "good":
-        new_interval = max(3, int(current_interval * 2.0))
-        new_reps = current_reps + 1
-        next_date = today + datetime.timedelta(days=new_interval)
-        review_due_label = f"In {new_interval}d"
-        xp_gain = 10
-    else:  # easy
-        new_interval = max(7, int(current_interval * 3.0))
-        new_reps = current_reps + 1
-        next_date = today + datetime.timedelta(days=new_interval)
-        review_due_label = f"In {new_interval}d"
-        xp_gain = 20
-        
-    c.execute('''
-        UPDATE vocab_vault 
-        SET interval_days = ?, repetition_count = ?, next_review_date = ?, review_due = ?
-        WHERE id = ?
-    ''', (new_interval, new_reps, str(next_date), review_due_label, card_id))
-    
-    if xp_gain > 0:
-        c.execute('UPDATE user_profile SET xp = xp + ? WHERE id = ?', (xp_gain, uid))
-        
-    conn.commit()
-    conn.close()
-
-def save_single_word(uid, word, meaning, dhatu):
-    conn = get_db_connection()
-    c = conn.cursor()
-    today_str = str(datetime.date.today())
-    c.execute('''
-        INSERT OR REPLACE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
-        VALUES (?, ?, ?, ?, "Learner", "Today", 1, 0, ?)
-    ''', (uid, word, meaning, dhatu, today_str))
-    c.execute('UPDATE user_profile SET xp = xp + 15 WHERE id = ?', (uid,))
-    conn.commit()
-    conn.close()
-
-def save_vault_bulk(uid, word_list):
-    conn = get_db_connection()
-    c = conn.cursor()
-    today_str = str(datetime.date.today())
-    added = 0
-    for w in word_list:
-        try:
-            c.execute('''
-                INSERT OR IGNORE INTO vocab_vault (user_id, word, meaning, dhatu, level, review_due, interval_days, repetition_count, next_review_date)
-                VALUES (?, ?, ?, ?, ?, "Today", 1, 0, ?)
-            ''', (uid, w['word'], w['meaning'], w.get('dhatu', w['word']), w.get('level', 'Beginner'), today_str))
-            if c.rowcount > 0:
-                added += 1
-        except Exception:
-            pass
-    c.execute('UPDATE user_profile SET xp = xp + ? WHERE id = ?', (added * 5, uid))
-    conn.commit()
-    conn.close()
-    return added
 
 def save_user_feedback(uid, teacher_name, user_prompt, response_text, fb_type, remark):
     conn = get_db_connection()
@@ -309,197 +159,12 @@ def save_user_feedback(uid, teacher_name, user_prompt, response_text, fb_type, r
     conn.commit()
     conn.close()
 
-# --- CSS STYLING ---
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
-    
-    .header-box {
-        background: linear-gradient(135deg, #E65100 0%, #BF360C 50%, #1A1A1A 100%);
-        border-radius: 16px;
-        padding: 16px 22px;
-        color: #FFFFFF;
-        box-shadow: 0 6px 20px rgba(230, 81, 0, 0.25);
-        margin-bottom: 15px;
-    }
-    
-    .avatar-wrapper {
-        position: relative;
-        width: 85px;
-        height: 85px;
-        margin: 0 auto;
-    }
-    
-    .avatar-base {
-        width: 85px;
-        height: 85px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid #FF8F00;
-        box-shadow: 0 0 14px rgba(255, 143, 0, 0.4);
-        transition: all 0.3s ease;
-    }
-    
-    .talking-lip {
-        position: absolute;
-        bottom: 14px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 16px;
-        height: 4px;
-        background: #8D1414;
-        border-radius: 50%;
-        opacity: 0;
-        transition: all 0.1s ease;
-    }
-    
-    .is-speaking .talking-lip {
-        opacity: 0.95;
-        animation: mouthTalk 0.25s infinite alternate ease-in-out;
-    }
-    
-    .is-speaking .avatar-base {
-        box-shadow: 0 0 24px rgba(255, 111, 0, 0.9);
-        transform: scale(1.03);
-    }
-
-    @keyframes mouthTalk {
-        0% { height: 3px; width: 12px; }
-        50% { height: 9px; width: 16px; background: #5C0B0B; }
-        100% { height: 5px; width: 18px; }
-    }
-    
-    .diagnostic-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 143, 0, 0.3);
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 16px;
-    }
-    
-    .league-header-card {
-        background: linear-gradient(135deg, #3E2723 0%, #1A0C00 100%);
-        border: 2px solid #FF8F00;
-        border-radius: 16px;
-        padding: 20px;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    
-    .leaderboard-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 143, 0, 0.15);
-        border-radius: 12px;
-        padding: 12px 18px;
-        margin-bottom: 8px;
-        transition: all 0.2s ease;
-    }
-    
-    .leaderboard-row.is-current-user {
-        background: rgba(230, 81, 0, 0.18);
-        border: 2px solid #FF8F00;
-        box-shadow: 0 0 16px rgba(255, 143, 0, 0.3);
-    }
-    
-    .flashcard-box {
-        background: linear-gradient(145deg, #2D1B08 0%, #170E04 100%);
-        border: 2px solid #FF8F00;
-        border-radius: 18px;
-        padding: 30px;
-        text-align: center;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        margin: 15px auto;
-        max-width: 600px;
-    }
-    
-    .flashcard-word {
-        font-size: 2.3rem;
-        font-weight: 800;
-        color: #FFD54F;
-        margin-bottom: 8px;
-    }
-    
-    .flashcard-sub {
-        font-size: 1rem;
-        color: #BDBDBD;
-        margin-bottom: 16px;
-    }
-    
-    .flashcard-answer {
-        font-size: 1.4rem;
-        color: #81C784;
-        font-weight: 700;
-        background: rgba(255, 255, 255, 0.05);
-        padding: 14px;
-        border-radius: 12px;
-        border: 1px dashed #4CAF50;
-        margin-top: 15px;
-    }
-    
-    .sentence-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 143, 0, 0.25);
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-def get_avatar_img(base_name, fallback_url):
-    extensions = [".jpeg", ".jpg", ".png", ".JPEG", ".JPG", ".PNG"]
-    assets_dir = os.path.join(BASE_DIR, "assets")
-    for ext in extensions:
-        local_p = os.path.join(assets_dir, base_name + ext)
-        if os.path.isfile(local_p):
-            try:
-                mime = "image/jpeg" if ext.lower() in [".jpeg", ".jpg"] else "image/png"
-                with open(local_p, "rb") as img_f:
-                    b64 = base64.b64encode(img_f.read()).decode()
-                    return f"data:{mime};base64,{b64}", f"Custom Asset ({base_name}{ext})"
-            except Exception:
-                pass
-    return fallback_url, "Default Asset"
-
-male_src, male_status = get_avatar_img("male_guru", "https://upload.wikimedia.org/wikipedia/commons/e/e3/Raja_Ravi_Varma_-_Sankaracharya.jpg")
-female_src, female_status = get_avatar_img("female_guru", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png")
-child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs")
-
-TEACHERS = {
-    "Male Guru (आचार्यः वसिष्ठः)": {
-        "title": "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)",
-        "desc": "Classical Guru • Deep Dignified Voice",
-        "img": male_src,
-        "status": male_status,
-        "tld": "co.in",
-        "slow": True
-    },
-    "Female Āchāryā (आचार्या गार्गी)": {
-        "title": "आचार्या गार्गी (Acharyaa Gargi)",
-        "desc": "Scholarly Preceptor • Warm Melodic Voice",
-        "img": female_src,
-        "status": female_status,
-        "tld": "com",
-        "slow": False
-    },
-    "Child Peer (बालकः ध्रुवः)": {
-        "title": "बालकः ध्रुवः (Balaka Dhruva)",
-        "desc": "Playful Peer • Cheerful Lively Voice",
-        "img": child_src,
-        "status": child_status,
-        "tld": "co.uk",
-        "slow": False
-    }
-}
-
+# --- AUDIO GENERATION & AVATAR ENGINE ---
 @st.cache_data(show_spinner=False, max_entries=200)
-def get_speech_audio_b64(text: str, tld: str, slow: bool) -> str:
+def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> str:
     try:
-        tts = gTTS(text=text, lang='hi', tld=tld, slow=slow)
+        clean_text = text.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
+        tts = gTTS(text=clean_text, lang='hi', tld=tld, slow=slow)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
@@ -507,301 +172,160 @@ def get_speech_audio_b64(text: str, tld: str, slow: bool) -> str:
     except Exception:
         return ""
 
-def extract_complete_sanskrit_speech(reply_content: str) -> str:
-    if "[संस्कृतम्]:" in reply_content:
-        part = reply_content.split("[संस्कृतम्]:")[1]
-        for marker in ["[IAST]:", "[English]:", "[✨ Say It Better]:", "[मार्गदर्शनम्]"]:
-            if marker in part:
-                part = part.split(marker)[0]
-        return part.replace('*', '').replace('#', '').replace('-', '').strip()
-    return ""
-
-def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
-    clean_text = sanskrit_text.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
-    if not clean_text:
-        return
-    cfg = TEACHERS[teacher_key]
-    audio_b64 = get_speech_audio_b64(clean_text, cfg["tld"], cfg["slow"])
-    if not audio_b64:
-        return
-        
-    elem_id = f"aud_{abs(hash(clean_text)) % 1000000}"
-    st.markdown(f"""
-    <div style="display:flex; align-items:center; gap:16px; margin: 10px 0; background:rgba(255,255,255,0.03); padding:12px; border-radius:14px; border:1px solid rgba(255,143,0,0.2);">
-        <div class="avatar-wrapper" id="wrap_{elem_id}">
-            <img src="{cfg['img']}" class="avatar-base"/>
-            <div class="talking-lip"></div>
-        </div>
-        <div style="flex-grow:1;">
-            <div style="font-size:0.78rem; color:#81C784; font-weight:700;">🟢 AI Preceptor Speaking ({cfg['title'].split('(')[0].strip()})</div>
-            <div style="font-weight:700; color:#FF8F00; font-size:1.02rem;">{cfg['title']}</div>
-            <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:36px; margin-top:5px;">
-                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
-            </audio>
-        </div>
+# Helper: Auto-Type Script Component for Text Inputs
+def render_autotype_mic(target_input_hint=""):
+    components.html(f"""
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:10px; background:rgba(255,111,0,0.06); padding:8px 14px; border-radius:10px; border:1px dashed #FF8F00; margin: 6px 0;">
+        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:#E65100; color:white; border:none; padding:6px 16px; border-radius:18px; font-weight:bold; cursor:pointer; font-size:0.8rem;">
+            🎙️ Auto-Type Voice
+        </button>
+        <span id="autoTypeStatus" style="font-size:0.8rem; color:#AAA;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
     </div>
     <script>
-        (function(){{
-            var aud = document.getElementById("{elem_id}");
-            var wrp = document.getElementById("wrap_{elem_id}");
-            if(aud && wrp){{
-                aud.onplay = function(){{ wrp.classList.add("is-speaking"); }};
-                aud.onpause = function(){{ wrp.classList.remove("is-speaking"); }};
-                aud.onended = function(){{ wrp.classList.remove("is-speaking"); }};
+        var recognition = null;
+        var isRec = false;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
+            var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SR();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'hi-IN';
+            
+            recognition.onstart = function() {{
+                isRec = true;
+                document.getElementById('autoTypeBtn').style.background = '#2E7D32';
+                document.getElementById('autoTypeBtn').innerText = '🔴 Listening...';
+                document.getElementById('autoTypeStatus').innerText = 'Transcribing your voice live...';
+            }};
+            recognition.onresult = function(e) {{
+                var spoken = e.results[0][0].transcript;
+                document.getElementById('autoTypeStatus').innerText = 'Recognized: ' + spoken;
+                var inputs = window.parent.document.querySelectorAll('textarea, input[type=text]');
+                if(inputs.length > 0) {{
+                    var target = inputs[inputs.length - 1];
+                    target.value = spoken;
+                    target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+            }};
+            recognition.onend = function() {{
+                isRec = false;
+                document.getElementById('autoTypeBtn').style.background = '#E65100';
+                document.getElementById('autoTypeBtn').innerText = '🎙️ Auto-Type Voice';
+            }};
+        }}
+        function toggleAutoType() {{
+            if(recognition) {{
+                if(isRec) {{ recognition.stop(); }} else {{ recognition.start(); }}
             }}
-        }})();
+        }}
     </script>
-    """, unsafe_allow_html=True)
+    """, height=50)
 
-def render_live_waveform_pitch_visualizer():
-    components.html("""
-    <div style="font-family:'Plus Jakarta Sans', sans-serif; background:#120B02; border:2px solid #FF8F00; border-radius:16px; padding:18px; color:#FFF;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <div>
-                <span style="font-size:1.05rem; font-weight:800; color:#FFD54F;">🌊 Live Vocal Pitch Spectrum (स्वर-तरङ्गिणी)</span>
-                <div style="font-size:0.8rem; color:#AAA;">Real-Time Pitch & Waveform Harmonic Resonance Matching (60 FPS)</div>
-            </div>
-            <button id="visMicBtn" onclick="togglePitchVisualizer()" style="background:#E65100; color:white; border:none; padding:8px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
-                🔴 Activate Visualizer
-            </button>
-        </div>
-
-        <canvas id="pitchCanvas" width="700" height="150" style="width:100%; height:150px; background:#080401; border-radius:10px; border:1px solid #3E2723;"></canvas>
-
-        <div style="display:flex; justify-content:space-around; align-items:center; margin-top:12px; background:rgba(255,255,255,0.03); padding:8px; border-radius:10px; font-size:0.82rem;">
-            <div>🎯 Target Preceptor Harmonic: <span style="color:#FF8F00; font-weight:bold;">140 Hz - 220 Hz (Mandra / Madhya)</span></div>
-            <div>🎙️ Live Vocal Pitch (F0): <span id="pitchVal" style="color:#81C784; font-weight:bold;">-- Hz</span></div>
-            <div>⚡ Acoustic Volume: <span id="volVal" style="color:#64B5F6; font-weight:bold;">-- dB</span></div>
-        </div>
-    </div>
-
-    <script>
-        var audioCtx = null;
-        var analyser = null;
-        var micStream = null;
-        var isVisRunning = false;
-        var animId = null;
-
-        async function togglePitchVisualizer() {
-            var btn = document.getElementById("visMicBtn");
-            if (!isVisRunning) {
-                try {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    var source = audioCtx.createMediaStreamSource(micStream);
-                    
-                    analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 2048;
-                    source.connect(analyser);
-
-                    isVisRunning = true;
-                    btn.style.background = "#2E7D32";
-                    btn.innerText = "⏹️ Stop Visualizer";
-                    drawLivePitchSpectrum();
-                } catch(err) {
-                    alert("Microphone access error: " + err.message);
-                }
-            } else {
-                if (micStream) micStream.getTracks().forEach(t => t.stop());
-                if (audioCtx) audioCtx.close();
-                cancelAnimationFrame(animId);
-                isVisRunning = false;
-                btn.style.background = "#E65100";
-                btn.innerText = "🔴 Activate Visualizer";
-                document.getElementById("pitchVal").innerText = "-- Hz";
-                document.getElementById("volVal").innerText = "-- dB";
-            }
-        }
-
-        function drawLivePitchSpectrum() {
-            if (!isVisRunning) return;
-            animId = requestAnimationFrame(drawLivePitchSpectrum);
-
-            var canvas = document.getElementById("pitchCanvas");
-            var ctx = canvas.getContext("2d");
-            var bufferLength = analyser.frequencyBinCount;
-            var timeData = new Uint8Array(bufferLength);
-            var freqData = new Uint8Array(bufferLength);
-
-            analyser.getByteTimeDomainData(timeData);
-            analyser.getByteFrequencyData(freqData);
-
-            var sum = 0;
-            var maxFreqIndex = 0;
-            var maxFreqVal = 0;
-            for (var i = 0; i < bufferLength; i++) {
-                sum += freqData[i];
-                if (freqData[i] > maxFreqVal) {
-                    maxFreqVal = freqData[i];
-                    maxFreqIndex = i;
-                }
-            }
-            var avgVol = Math.round(sum / bufferLength);
-            var estPitch = Math.round(maxFreqIndex * (audioCtx.sampleRate / analyser.fftSize));
-
-            if (avgVol > 5) {
-                document.getElementById("pitchVal").innerText = (estPitch > 50 && estPitch < 800) ? estPitch + " Hz" : "-- Hz";
-                document.getElementById("volVal").innerText = avgVol + " dB";
-            } else {
-                document.getElementById("pitchVal").innerText = "Silent";
-                document.getElementById("volVal").innerText = "0 dB";
-            }
-
-            ctx.fillStyle = "#080401";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "rgba(255, 143, 0, 0.4)";
-            ctx.beginPath();
-            for (var i = 0; i < canvas.width; i++) {
-                var y = (canvas.height / 2) + Math.sin(i * 0.05 + Date.now() * 0.003) * 25;
-                if (i === 0) ctx.moveTo(i, y);
-                else ctx.lineTo(i, y);
-            }
-            ctx.stroke();
-
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = "#81C784";
-            ctx.beginPath();
-            var sliceWidth = canvas.width * 1.0 / bufferLength;
-            var x = 0;
-            for (var i = 0; i < bufferLength; i++) {
-                var v = timeData[i] / 128.0;
-                var y = v * (canvas.height / 2);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-                x += sliceWidth;
-            }
-            ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.stroke();
-        }
-    </script>
-    """, height=255)
-
-def split_into_sentences(text: str, max_limit=50):
-    lines = text.split('\n')
-    sentences = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        parts = re.split(r'([.?!।॥]+)', line)
-        temp = ""
-        for p in parts:
-            if re.match(r'^[.?!।॥]+$', p):
-                temp += p
-                if temp.strip():
-                    sentences.append(temp.strip())
-                temp = ""
-            else:
-                temp += p
-        if temp.strip():
-            sentences.append(temp.strip())
-    return sentences[:max_limit]
-
-# --- APP HERO ---
+# --- CSS STYLES ---
 st.markdown("""
-<div class="header-box">
-    <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Weekly Social Leagues • Real-Time Vocal Spectrum</p>
-</div>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+    
+    .hero-banner {
+        background: linear-gradient(135deg, #BF360C 0%, #E65100 50%, #1A0A00 100%);
+        border-radius: 16px;
+        padding: 16px 22px;
+        color: #FFFFFF;
+        box-shadow: 0 6px 22px rgba(230, 81, 0, 0.3);
+        margin-bottom: 15px;
+    }
+    .game-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 143, 0, 0.25);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 12px;
+    }
+    .motto-badge {
+        background: linear-gradient(145deg, #3E2723, #1A0C00);
+        border-left: 4px solid #FF8F00;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- SIDEBAR: GURU PROFILE & XP TRACKER ---
 u_streak, u_xp, u_level, u_name = get_user_stats(st.session_state.user_session_id)
 
+TEACHERS = {
+    "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)": {"tld": "co.in", "slow": True, "desc": "Classical Sage • Deep Vedic Cadence"},
+    "आचार्या गार्गी (Acharyaa Gargi)": {"tld": "com", "slow": False, "desc": "Philosophical Preceptor • Melodic & Clear"},
+    "बालकः ध्रुवः (Balaka Dhruva)": {"tld": "co.uk", "slow": False, "desc": "Young Companion • Fast & Playful"}
+}
+
 with st.sidebar:
-    st.markdown("### 🎙️ **Teacher & Voice Profile**")
-    selected_teacher = st.selectbox("Active Guide:", list(TEACHERS.keys()), index=0)
-    t_info = TEACHERS[selected_teacher]
-    
-    st.markdown(f"""
-    <div style="text-align:center; padding:10px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid rgba(255,143,0,0.25);">
-        <img src="{t_info['img']}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid #FF8F00; margin-bottom:6px;"/>
-        <div style="font-weight:700; color:#FF8F00;">{t_info['title']}</div>
-        <div style="font-size:0.75rem; opacity:0.8;">{t_info['desc']}</div>
-        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Image: {t_info['status']}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("### 🚩 **संस्कृत-AI-गुरुः**")
+    selected_teacher_name = st.selectbox("Active Preceptor / गुरुः:", list(TEACHERS.keys()), index=0)
+    t_info = TEACHERS[selected_teacher_name]
+    st.caption(t_info["desc"])
     
     api_key = st.text_input(
         "Google Gemini API Key",
         type="password",
         placeholder="Paste AIza... key here",
         value=os.getenv("GEMINI_API_KEY", ""),
-        help="Free key from aistudio.google.com/apikey"
+        help="Free API key from aistudio.google.com"
     )
     
-    level_options = ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"]
-    default_idx = level_options.index(u_level) if u_level in level_options else 0
-    target_tier = st.selectbox("Active Tier / स्तरः", level_options, index=default_idx)
+    target_tier = st.selectbox("Proficiency Level / स्तरः:", ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"])
     
     st.markdown("---")
-    st.markdown("### 🏆 **Database User Stats**")
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        st.metric("🔥 Streak", f"{u_streak} Days")
-    with col_p2:
-        st.metric("⭐ Points", f"{u_xp} XP")
+    st.markdown("### 🏆 **Student Gamification Hub**")
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        st.metric("🔥 Daily Streak", f"{u_streak} Days")
+    with col_s2:
+        st.metric("⭐ Accumulated XP", f"{u_xp} XP")
     
-    st.caption(f"🎯 Placed Tier: **{u_level}**")
+    st.caption(f"Rank: **{u_level}**")
     
-    if st.button("🔄 Reset Conversation", use_container_width=True):
+    if st.button("🔄 Clear Active Session", use_container_width=True):
         st.session_state.chat_history = []
-        st.session_state.turn_count = 0
         st.rerun()
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "turn_count" not in st.session_state:
-    st.session_state.turn_count = 0
-if "card_flipped" not in st.session_state:
-    st.session_state.card_flipped = False
-if "current_card_index" not in st.session_state:
-    st.session_state.current_card_index = 0
 
-FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', a high-performance interactive conversational Sanskrit tutor.
-Student Tier: {target_tier}.
+# --- APP HERO ---
+st.markdown("""
+<div class="hero-banner">
+    <h2 style="margin:0; font-weight:800;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • Amarakośa • Rūpa Matrix • Chandaḥ • Mottos • Pañcāṅga</p>
+</div>
+""", unsafe_allow_html=True)
 
-Pedagogical Rules:
-1. Converse dynamically in authentic spoken Sarala Samskritam matching the student's level.
-2. Keep response to 2-3 spoken sentences.
-3. Conclude by asking a natural conversational question.
-
-Mandatory Response Format:
-[संस्कृतम्]: <Your spoken Sanskrit reply>
-[IAST]: <Romanized transliteration>
-[English]: <English meaning>
-[✨ Say It Better]: <Short idiomatic Sanskrit alternative>
-[मार्गदर्शनम्] (Include only if student made a grammatical error):
-- 💡 Correction & rule
-"""
-
-# --- 7 COMPREHENSIVE PRODUCTION TABS ---
-tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_diagnostic, tab_leagues, tab_chandas, tab_trans = st.tabs([
-    "💬 1. Oral Roleplay",
-    "🧠 2. SRS Flashcard Quiz",
-    "🎙️ 3. Śikṣā Phonetics & Pitch",
-    "📝 4. Diagnostic Test",
-    "🏆 5. Social Leagues & Leaderboard",
-    "🕉️ 6. Svara & Chandaḥ",
-    "🌐 7. Batch Translator (50 Sentences)"
+# --- 7 MASTER TABS ---
+tab_roleplay, tab_trans, tab_amara, tab_rupa, tab_chandas, tab_motto, tab_samskriti = st.tabs([
+    "💬 1. Saṃbhāṣaṇa (Roleplay)",
+    "🌐 2. Anuvāda-Setu (Translator)",
+    "📖 3. Amarakośa-Vyūha (Thesaurus)",
+    "🏛️ 4. Rūpa-Sādhana (Grammar Arena)",
+    "🕉️ 5. Chandaḥ & Śikṣā (Phonetics)",
+    "🚩 6. Saṃsthā-Dhyeya (Mottos)",
+    "🛕 7. Saṃskṛti-Jñāna (Vedas & Festivals)"
 ])
 
 # =========================================================
-# TAB 1: HIGH-ACCURACY ORAL ROLEPLAY
+# TAB 1: SAMBHĀṢAṆA (ROLEPLAY CONVERSATION)
 # =========================================================
 with tab_roleplay:
-    st.markdown("#### 💬 Situational Conversational Immersion (सजीव-सम्भाषणम्)")
-    
+    st.markdown("#### 💬 Live Dialogue with AI Guru (सजीव-सम्भाषणम्)")
     scenario = st.selectbox(
-        "Conversation Scenario / प्रसङ्गः:",
+        "Select Roleplay Context / प्रसङ्गः:",
         [
-            "At Gurukula / Classroom (पाठशाला - शिष्टाचारः)",
+            "At Gurukula / Classroom (गुरुकुलम् - शिष्टाचारः)",
             "At the Market (विपणिः - शाकक्रयणम् / Purchasing Vegetables)",
-            "Travel & Directions (यात्रा - मार्गनिर्देशनम्)",
-            "Welcoming Guests (अतिथि-सत्कारः)",
-            "Open Free Dialogue (मुक्त-सम्भाषणम्)"
+            "Vedic Debate & Philosophy (शास्त्रार्थ-सभा)",
+            "Welcoming Guests at Home (अतिथि-सत्कारः)",
+            "Open Free Sanskrit Dialogue (मुक्त-सम्भाषणम्)"
         ]
     )
     
@@ -809,613 +333,372 @@ with tab_roleplay:
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
-            if role == "assistant":
-                full_s = extract_complete_sanskrit_speech(msg["content"])
-                if full_s:
-                    render_talking_avatar(full_s, selected_teacher, auto_play=False)
-                
-                with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
-                    with st.form(key=f"rem_form_{idx}"):
-                        fb_type = st.selectbox(
-                            "Classification:",
-                            [
-                                "⚠️ Grammar / Sūtra Error (व्याकरण-दोषः)",
-                                "⚠️ Inaccurate Translation (अनुवाद-दोषः)",
-                                "⚠️ Sandhi / Spelling Mistake (सन्धि/वर्ण-दोषः)",
-                                "💡 Suggestion / Better Word (सुझावः)",
-                                "✅ Auspicious & Correct (उत्कृष्टम्)"
-                            ],
-                            key=f"fb_sel_{idx}"
-                        )
-                        fb_text = st.text_area("Write remarks / corrections:", key=f"fb_txt_{idx}", placeholder="e.g. In line 1, 'गच्छामि' should be used...")
-                        if st.form_submit_button("💾 Save Remark"):
-                            prior_user = st.session_state.chat_history[idx - 1]["content"] if idx > 0 else "N/A"
-                            save_user_feedback(st.session_state.user_session_id, selected_teacher, prior_user, msg["content"], fb_type, fb_text)
-                            st.success("✅ Remark saved successfully into the database!")
+            if role == "assistant" and "[संस्कृतम्]:" in msg["content"]:
+                s_part = msg["content"].split("[संस्कृतम्]:")[1].split("[")[0].strip()
+                aud_b64 = get_speech_audio_b64(s_part, t_info["tld"], t_info["slow"])
+                if aud_b64:
+                    st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
 
-    st.markdown("##### 🎙️ **Speak into Microphone (वदतु):**")
-    user_audio = st.audio_input("Record continuous voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
-
-    if user_audio is not None:
+    render_autotype_mic("into the roleplay box below")
+    
+    if user_prompt := st.chat_input("Speak or type in Sanskrit / English / Telugu..."):
         if not api_key:
-            st.warning("⚠️ Enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter Gemini API Key in the sidebar.")
             st.stop()
-
+            
         client = genai.Client(api_key=api_key)
-        audio_bytes = user_audio.getvalue()
+        is_dev = any("\u0900" <= char <= "\u097f" for char in user_prompt)
+        prompt_formatted = user_prompt if is_dev else f"{user_prompt} ({transliterate(user_prompt, sanscript.ITRANS, sanscript.DEVANAGARI)})"
         
-        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Continuous Spoken Voice Submitted]*"})
+        st.session_state.chat_history.append({"role": "user", "content": prompt_formatted})
         with st.chat_message("user"):
-            st.audio(user_audio, format="audio/wav")
-
+            st.markdown(prompt_formatted)
+            
         with st.chat_message("assistant"):
-            with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
-                t_start = time.time()
+            with st.spinner("गुरुः चिन्तयति..."):
+                system_prompt = f"""You are '{selected_teacher_name}', an encouraging Sanskrit guru.
+Level: {target_tier}. Scenario: {scenario}.
+Respond in 2-3 spoken sentences in Sarala Samskritam. Finish with a friendly question.
+Format:
+[संस्कृतम्]: <Sanskrit reply>
+[IAST]: <Romanized>
+[English]: <Meaning>
+[✨ Say It Better]: <Idiomatic alternative>
+"""
                 try:
-                    reply_text = generate_gemini_content(
-                        client=client,
-                        contents=[{
-                            "role": "user",
-                            "parts": [
-                                {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Transcribe student audio and reply comprehensively."}
-                            ]
-                        }],
-                        config={"temperature": 0.2, "max_output_tokens": 500}
-                    )
-                    latency = round(time.time() - t_start, 2)
-                    
+                    contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.chat_history]
+                    reply_text = generate_gemini_content(client, contents, config={"system_instruction": system_prompt, "temperature": 0.2, "max_output_tokens": 450})
                     st.markdown(reply_text)
-                    st.caption(f"⚡ *Response Latency: {latency}s*")
-                    
-                    full_s = extract_complete_sanskrit_speech(reply_text)
-                    if full_s:
-                        render_talking_avatar(full_s, selected_teacher, auto_play=True)
-                    
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
-                    st.session_state.turn_count += 1
                     update_user_xp(st.session_state.user_session_id, 10)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    if text_input := st.chat_input("Type in Sanskrit, English, or Telugu (e.g. mama nama, katham asti)..."):
-        if not api_key:
-            st.warning("⚠️ Enter Gemini API key in the sidebar.")
-            st.stop()
-
-        client = genai.Client(api_key=api_key)
-        is_dev = any("\u0900" <= char <= "\u097f" for char in text_input)
-        display_text = text_input if is_dev else f"{text_input} ({transliterate(text_input, sanscript.ITRANS, sanscript.DEVANAGARI)})"
-
-        st.session_state.chat_history.append({"role": "user", "content": display_text})
-        with st.chat_message("user"):
-            st.markdown(display_text)
-
-        contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.chat_history]
-
-        with st.chat_message("assistant"):
-            with st.spinner("चिन्तयति..."):
-                t_start = time.time()
-                try:
-                    reply_text = generate_gemini_content(
-                        client=client,
-                        contents=contents,
-                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 500}
-                    )
-                    latency = round(time.time() - t_start, 2)
-                    
-                    st.markdown(reply_text)
-                    st.caption(f"⚡ *Response Latency: {latency}s*")
-                    
-                    full_s = extract_complete_sanskrit_speech(reply_text)
-                    if full_s:
-                        render_talking_avatar(full_s, selected_teacher, auto_play=True)
-                        
-                    st.session_state.chat_history.append({"role": "model", "content": reply_text})
-                    st.session_state.turn_count += 1
-                    update_user_xp(st.session_state.user_session_id, 5)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-
 # =========================================================
-# TAB 2: ACTIVE RECALL FLASHCARD DECK (SRS LEITNER SYSTEM)
-# =========================================================
-with tab_srs_flashcards:
-    st.markdown("#### 🧠 Spaced Repetition (SRS) Active Recall Flashcard Deck")
-    st.caption("Cards schedule themselves scientifically using Leitner review intervals. Flip to test your memory and rate difficulty.")
-    
-    tab_fc_quiz, tab_fc_pdf, tab_fc_manage = st.tabs(["🎴 1. Practice Due Cards", "📄 2. Ingest from PDF", "🗄️ 3. Vault Database"])
-    
-    with tab_fc_quiz:
-        due_cards = get_due_flashcards(st.session_state.user_session_id)
-        
-        if not due_cards:
-            st.markdown("""
-            <div class="flashcard-box" style="border-color:#4CAF50;">
-                <div style="font-size:2.5rem; margin-bottom:10px;">🎉</div>
-                <h3 style="color:#81C784; margin:0 0 6px 0;">सर्वे शब्दाः अभ्यस्ताः! (All Caught Up!)</h3>
-                <p style="color:#DDD; font-size:0.95rem;">You have reviewed all due vocabulary for today. Add more words from a PDF or check back tomorrow!</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            total_due = len(due_cards)
-            idx = min(st.session_state.current_card_index, total_due - 1)
-            card = due_cards[idx]
-            
-            st.progress((idx + 1) / total_due, text=f"Reviewing Card {idx + 1} of {total_due} Due Today")
-            
-            st.markdown(f"""
-            <div class="flashcard-box">
-                <div style="font-size:0.8rem; color:#FF8F00; font-weight:700; text-transform:uppercase; letter-spacing:1px;">
-                    {card['level']} • Root: {card['dhatu']} • Reps: {card['reps']}
-                </div>
-                <div class="flashcard-word">{card['word']}</div>
-                <div class="flashcard-sub">What does this Sanskrit word mean?</div>
-                {'<div class="flashcard-answer">📖 <b>' + card['meaning'] + '</b></div>' if st.session_state.card_flipped else ''}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            audio_b64 = get_speech_audio_b64(card['word'], t_info["tld"], t_info["slow"])
-            if audio_b64:
-                col_aud_l, col_aud_m, col_aud_r = st.columns([1, 2, 1])
-                with col_aud_m:
-                    st.audio(f"data:audio/mp3;base64,{audio_b64}", format="audio/mp3")
-
-            col_b1, col_b2, col_b3, col_b4 = st.columns(4)
-            
-            if not st.session_state.card_flipped:
-                if st.button("🔄 Flip Card to Reveal Answer / अर्थं पश्य", use_container_width=True):
-                    st.session_state.card_flipped = True
-                    st.rerun()
-            else:
-                with col_b1:
-                    if st.button("❌ Again / भूयः\n(Today • 0 XP)", use_container_width=True):
-                        update_srs_rating(card["id"], "again", card["interval"], card["reps"], st.session_state.user_session_id)
-                        st.session_state.card_flipped = False
-                        st.rerun()
-                with col_b2:
-                    if st.button("🟡 Hard / कठिनम्\n(+1 Day • 5 XP)", use_container_width=True):
-                        update_srs_rating(card["id"], "hard", card["interval"], card["reps"], st.session_state.user_session_id)
-                        st.session_state.card_flipped = False
-                        st.rerun()
-                with col_b3:
-                    if st.button("🟢 Good / सम्यक्\n(+3 Days • 10 XP)", use_container_width=True):
-                        update_srs_rating(card["id"], "good", card["interval"], card["reps"], st.session_state.user_session_id)
-                        st.session_state.card_flipped = False
-                        st.rerun()
-                with col_b4:
-                    if st.button("⭐ Easy / सरलम्\n(+7 Days • 20 XP)", use_container_width=True):
-                        update_srs_rating(card["id"], "easy", card["interval"], card["reps"], st.session_state.user_session_id)
-                        st.session_state.card_flipped = False
-                        st.rerun()
-
-    with tab_fc_pdf:
-        col_pdf1, col_pdf2 = st.columns([1, 1])
-        with col_pdf1:
-            uploaded_pdf = st.file_uploader("Upload Sanskrit PDF File:", type=["pdf"], key="srs_pdf_up")
-            max_words = st.slider("Max Words to Ingest into Flashcard Deck:", min_value=10, max_value=50, value=25)
-            
-            if uploaded_pdf is not None and st.button("⚡ Extract & Ingest as New Flashcards", use_container_width=True):
-                if not api_key:
-                    st.warning("⚠️ Enter your Gemini API key in the sidebar.")
-                    st.stop()
-                
-                with st.spinner("Extracting text and analyzing morphology for flashcard deck..."):
-                    try:
-                        pdf_reader = PdfReader(uploaded_pdf)
-                        extracted_text = ""
-                        for page_idx in range(min(8, len(pdf_reader.pages))):
-                            text = pdf_reader.pages[page_idx].extract_text()
-                            if text:
-                                extracted_text += text + "\n"
-                        
-                        if not extracted_text.strip():
-                            st.error("No readable text found in PDF.")
-                            st.stop()
-                        
-                        client = genai.Client(api_key=api_key)
-                        PROMPT_BULK = f"""Extract {max_words} unique Sanskrit words from this text.
-Return a STRICT JSON array of objects with keys: "word", "meaning", "dhatu", "level".
-Example:
-[
-  {{"word": "गच्छति", "meaning": "goes", "dhatu": "गम्", "level": "Beginner"}}
-]
-Text:
-{extracted_text[:4000]}
-"""
-                        resp_text = generate_gemini_content(
-                            client=client,
-                            contents=[{"role": "user", "parts": [{"text": PROMPT_BULK}]}],
-                            config={"temperature": 0.1},
-                            is_json=True
-                        )
-                        
-                        parsed_vocab = json.loads(resp_text)
-                        added = save_vault_bulk(st.session_state.user_session_id, parsed_vocab)
-                        st.success(f"🎉 Successfully created {added} new Flashcards in your SRS Deck! (+{added * 5} XP)")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error processing PDF: {str(e)}")
-
-        with col_pdf2:
-            st.markdown("##### ➕ **Or Add Flashcard Manually:**")
-            with st.form("manual_fc_add"):
-                vw = st.text_input("Sanskrit Word (पदम्):")
-                vm = st.text_input("Meaning (अर्थः):")
-                vd = st.text_input("Root / Stem (धातुः):")
-                if st.form_submit_button("Save to Flashcard Deck (+15 XP)") and vw and vm:
-                    save_single_word(st.session_state.user_session_id, vw, vm, vd if vd else vw)
-                    st.success(f"Saved '{vw}' as active flashcard!")
-                    st.rerun()
-
-    with tab_fc_manage:
-        all_words = get_all_vault_words(st.session_state.user_session_id)
-        st.caption(f"Total Words in Vault: **{len(all_words)}**")
-        search_q = st.text_input("🔍 Search Flashcard Vault:", placeholder="Filter words...")
-        filtered_w = [x for x in all_words if search_q.lower() in x['word'].lower() or search_q.lower() in x['meaning'].lower()] if search_q else all_words
-        
-        for itm in filtered_w[:40]:
-            st.markdown(f"• **{itm['word']}** — *{itm['meaning']}* | Root: `{itm['dhatu']}` | ⏳ Due: `{itm['review_due']}`")
-
-# =========================================================
-# TAB 3: ŚIKṢĀ PHONETICS & VOCAL PITCH SPECTRUM
-# =========================================================
-with tab_shiksha:
-    st.markdown("#### 🎙️ पाणिनीय-शिक्षा एवं स्वर-तरङ्गिणी (Phonetic Accent & Pitch Visualizer)")
-    st.caption("Matches your real-time vocal harmonics and pronunciation against classical Vedic phonetics.")
-    
-    render_live_waveform_pitch_visualizer()
-    
-    st.write("---")
-    drill = st.selectbox("Choose Target Phrase to Master:", [
-        "सत्यं वद, धर्मं चर। (Speak truth, practice righteousness)",
-        "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
-        "वृक्षात् फलानि भूमौ पतन्ति। (Fruits fall from tree - Mahāprāṇa 'ph')",
-        "अहं प्रतिदिनं प्रातः पञ्चवादने उत्तिष्ठामि। (I wake at 5 AM - Retroflex 'ṣṭh')"
-    ])
-    phrase = drill.split('(')[0].strip()
-    
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        st.markdown(f"##### 🔊 **1. Master Chanting ({t_info['title']}):**")
-        render_talking_avatar(phrase, selected_teacher, auto_play=False)
-    with col_s2:
-        st.markdown("##### 🎙️ **2. Record Chanting for Acoustic Diagnosis:**")
-        rec_sh = st.audio_input("Chant the phrase:", key="shiksha_mic")
-
-    if rec_sh is not None:
-        if not api_key:
-            st.warning("⚠️ Enter Gemini API key.")
-            st.stop()
-        client = genai.Client(api_key=api_key)
-        with st.spinner("Analyzing phonetic acoustics..."):
-            try:
-                resp_text = generate_gemini_content(
-                    client=client,
-                    contents=[{
-                        "role": "user",
-                        "parts": [
-                            {"inline_data": {"mime_type": "audio/wav", "data": rec_sh.getvalue()}},
-                            {"text": f"Evaluate student pronunciation against target: '{phrase}'. Return: 1. Score out of 100, 2. Articulation points (Dental vs Retroflex), 3. Mahaprana breath release, 4. Vowel duration (Hrasva/Dirgha), 5. Tongue placement tip."}
-                        ]
-                    }],
-                    config={"max_output_tokens": 400}
-                )
-                st.markdown(resp_text)
-                update_user_xp(st.session_state.user_session_id, 15)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-
-# =========================================================
-# TAB 4: AUTOMATED DIAGNOSTIC PLACEMENT TEST
-# =========================================================
-with tab_diagnostic:
-    st.markdown("#### 📝 प्रवेश-परीक्षा एवं स्तर-निर्धारणम् (Diagnostic Placement Test)")
-    st.caption("Take this 5-dimension diagnostic test to evaluate your Sanskrit proficiency and automatically calibrate your learning tier.")
-    
-    with st.form("diagnostic_test_form"):
-        st.markdown("""
-        <div class="diagnostic-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">1. Vocabulary & Meaning / शब्दार्थ-ज्ञानम्</h4>
-            <p style="margin:0 0 10px 0; font-size:0.95rem;">What is the meaning of the word <b>'पिपासा' (Pipāsā)</b>?</p>
-        </div>
-        """, unsafe_allow_html=True)
-        q1 = st.radio("Choose correct meaning:", [
-            "Hunger (बुभुक्षा)",
-            "Thirst (पिपासा - इच्छा पातुम्)",
-            "Sleep (निद्रा)",
-            "Fatigue (श्रमः)"
-        ], index=0, key="diag_q1")
-        
-        st.markdown("""
-        <div class="diagnostic-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">2. Verb Inflection / तिङन्तरूप-ज्ञानम्</h4>
-            <p style="margin:0 0 10px 0; font-size:0.95rem;">Choose the correct past-tense (लङ्-लकारः) form for <b>'सः ____' (He went)</b> from root <i>गम् (to go)</i>:</p>
-        </div>
-        """, unsafe_allow_html=True)
-        q2 = st.radio("Choose correct verb form:", [
-            "गच्छति (Gacchati - Present)",
-            "अगच्छत् (Agacchat - Past 3rd Person Singular)",
-            "गमिष्यति (Gamiṣyati - Future)",
-            "अगच्छन् (Agacchan - Past Plural)"
-        ], index=0, key="diag_q2")
-        
-        st.markdown("""
-        <div class="diagnostic-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">3. Listening & Oral Comprehension / श्रवण-बोधः</h4>
-            <p style="margin:0 0 8px 0; font-size:0.95rem;">Listen to the short Sanskrit sentence spoken by Acharya:</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        listening_phrase = "छात्राः प्रतिदिनं विद्यालयं गच्छन्ति।"
-        l_audio = get_speech_audio_b64(listening_phrase, t_info["tld"], t_info["slow"])
-        if l_audio:
-            st.audio(f"data:audio/mp3;base64,{l_audio}", format="audio/mp3")
-            
-        q3 = st.radio("What did Acharya state in the audio clip?", [
-            "The teacher is teaching in the classroom.",
-            "Students go to school every day.",
-            "Children are playing in the garden.",
-            "I wake up at five in the morning."
-        ], index=0, key="diag_q3")
-        
-        st.markdown("""
-        <div class="diagnostic-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">4. Sandhi & Word Splitting / सन्धि-विश्लेषणम्</h4>
-            <p style="margin:0 0 10px 0; font-size:0.95rem;">What is the correct Sandhi split of <b>'इत्युक्त्वोपविष्टः'</b>?</p>
-        </div>
-        """, unsafe_allow_html=True)
-        q4 = st.radio("Choose correct split:", [
-            "इति + उक्त्वा + उपविष्टः (Yaṇ Sandhi + Guṇa Sandhi)",
-            "इत् + युक्त + उपविष्टः",
-            "इत्यु + क्त्वोप + विष्टः",
-            "इति + उक्ता + अपविष्टः"
-        ], index=0, key="diag_q4")
-        
-        st.markdown("""
-        <div class="diagnostic-card">
-            <h4 style="color:#FF8F00; margin:0 0 6px 0;">5. Syntax & Case Agreement / कारक-विभक्ति-ज्ञानम्</h4>
-            <p style="margin:0 0 10px 0; font-size:0.95rem;">Fill in the blank with the correct case: <b>'बालकः ____ बिभेति।' (The boy is afraid of the dog)</b></p>
-        </div>
-        """, unsafe_allow_html=True)
-        q5 = st.radio("Choose the correct word:", [
-            "कुकुरम् (Accusative / द्वितीया)",
-            "कुकुरेण (Instrumental / तृतीया)",
-            "कुकुरात् (Ablative / पञ्चमी - भीत्रार्थानां भयहेतुः)",
-            "कुकुरस्य (Genitive / षष्ठी)"
-        ], index=0, key="diag_q5")
-        
-        submit_diag = st.form_submit_button("🏁 Submit Diagnostic Evaluation / परीक्षां समर्पय", use_container_width=True)
-        
-        if submit_diag:
-            score = 0
-            if "Thirst" in q1: score += 20
-            if "अगच्छत्" in q2: score += 20
-            if "Students go to school" in q3: score += 20
-            if "इति + उक्त्वा + उपविष्टः" in q4: score += 20
-            if "कुकुरात्" in q5: score += 20
-            
-            if score >= 80:
-                placed_level = "Advanced (उत्तमा)"
-                feedback_msg = "🌟 **उत्कृष्टम् (Exceptional Mastery)!** You demonstrated deep command of Pāṇinian grammar, Sandhi, and oral comprehension. You are placed in the Advanced Tier."
-            elif score >= 50:
-                placed_level = "Intermediate (मध्यमा)"
-                feedback_msg = "👍 **सम्यक् (Solid Foundation)!** You have good foundational vocabulary and sentence formation skills. You are placed in the Intermediate Tier."
-            else:
-                placed_level = "Beginner (प्रथमा)"
-                feedback_msg = "🌱 **प्रारम्भिकः (Welcome Learner)!** We will begin with spoken essentials, basic vocabulary, and step-by-step roleplay dialogues. You are placed in the Beginner Tier."
-                
-            update_user_level(st.session_state.user_session_id, placed_level)
-            update_user_xp(st.session_state.user_session_id, score)
-            
-            st.success(f"🎯 **Diagnostic Result:** Score: **{score}/100** | Placed Tier: **{placed_level}** (+{score} XP)")
-            st.markdown(feedback_msg)
-            st.info("💡 Your active learning tier in the sidebar and oral dialogue sessions has been automatically updated!")
-
-# =========================================================
-# TAB 5: SOCIAL LEAGUES & GLOBAL LEADERBOARD
-# =========================================================
-with tab_leagues:
-    st.markdown("#### 🏆 साप्ताहिक-यशःपट्टिका एवं मण्डल-श्रेणी (Weekly Social Leagues)")
-    st.caption("Compete with Sanskrit learners worldwide. Earn XP through oral dialogues, flashcard mastery, and translations to gain promotion!")
-    
-    if u_xp >= 500:
-        league_name = "🥇 ब्रह्मवर्चस् मण्डलम् (Brahmavarcasa Diamond League)"
-        league_color = "#FFD54F"
-        next_league_target = "Highest League Reached!"
-        progress_val = 1.0
-    elif u_xp >= 200:
-        league_name = "🥈 विद्याधर मण्डलम् (Vidyādhara Silver League)"
-        league_color = "#E0E0E0"
-        next_league_target = f"{500 - u_xp} XP to Brahmavarcasa League"
-        progress_val = (u_xp - 200) / 300.0
-    else:
-        league_name = "🥉 जिज्ञासु मण्डलम् (Śiṣya Bronze League)"
-        league_color = "#CD7F32"
-        next_league_target = f"{200 - u_xp} XP to Vidyādhara League"
-        progress_val = u_xp / 200.0
-
-    st.markdown(f"""
-    <div class="league-header-card">
-        <div style="font-size:0.85rem; text-transform:uppercase; letter-spacing:1.5px; color:#FF8F00; font-weight:800; margin-bottom:4px;">
-            YOUR CURRENT DIVISION
-        </div>
-        <h2 style="color:{league_color}; margin:0 0 8px 0; font-weight:800;">{league_name}</h2>
-        <div style="font-size:0.95rem; color:#DDD;">
-            <b>Active XP:</b> {u_xp} XP | <b>Streak:</b> 🔥 {u_streak} Days | <b>Status:</b> {next_league_target}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.progress(min(1.0, max(0.0, progress_val)), text=f"Promotion Progress: {next_league_target}")
-    st.write("")
-
-    leaders = get_global_leaderboard()
-    
-    col_l1, col_l2 = st.columns([2, 1])
-    with col_l1:
-        st.markdown("##### 🌍 **Global Weekly Rankings:**")
-        for rank, (uname, ulevel, ustrk, uxp, uid) in enumerate(leaders, start=1):
-            is_me = (uid == st.session_state.user_session_id)
-            medal = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
-                
-            st.markdown(f"""
-            <div class="leaderboard-row {'is-current-user' if is_me else ''}">
-                <div style="display:flex; align-items:center; gap:14px;">
-                    <div style="font-size:1.2rem; font-weight:800; min-width:32px; text-align:center;">{medal}</div>
-                    <div>
-                        <div style="font-weight:700; color:{'#FFD54F' if is_me else '#FFF'}; font-size:0.95rem;">
-                            {uname} {' (You)' if is_me else ''}
-                        </div>
-                        <div style="font-size:0.75rem; color:#AAA;">
-                            {ulevel} • 🔥 {ustrk} Day Streak
-                        </div>
-                    </div>
-                </div>
-                <div style="font-weight:800; font-size:1.05rem; color:#FF8F00;">
-                    {uxp} XP
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with col_l2:
-        st.markdown("##### ⚡ **How to Earn XP & Climb:**")
-        st.markdown("""
-        * 💬 **Oral Dialogue Turn:** `+10 XP`
-        * 🎴 **Good / Easy Flashcard:** `+10 / +20 XP`
-        * 📄 **PDF Bulk Word Ingest:** `+5 XP per word`
-        * 📝 **Placement Test Clear:** `Up to +100 XP`
-        * 🕉️ **Chandaḥ Verse Scan:** `+20 XP`
-        """)
-
-# =========================================================
-# TAB 6: SVARA & CHANDAḤ ENGINE
-# =========================================================
-with tab_chandas:
-    st.markdown("#### 🕉️ वैदिक-स्वर एवं छन्दो-विश्लेषकः (Pingala Chandaḥ Engine)")
-    verse_input = st.text_area("Enter Verse for Scansion:", value="धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः।\nमामकाः पाण्डवाश्चैव किमकुर्वत सञ्जय॥", height=80)
-    
-    if st.button("Scan Metre & Pitch / छन्दो-परीक्षणम्", use_container_width=True):
-        if not api_key:
-            st.warning("⚠️ Enter Gemini API key.")
-            st.stop()
-        client = genai.Client(api_key=api_key)
-        with st.spinner("Analyzing scansion..."):
-            try:
-                res_text = generate_gemini_content(
-                    client=client,
-                    contents=[{"role": "user", "parts": [{"text": f"Perform Pingala Chandaḥ scansion on: '{verse_input}'. Identify metre name (Anuṣṭubh, Triṣṭubh, etc.), Laghu (।) / Guru (ऽ) syllabic mapping, Gana breakdown, and Vedic Svara rules."}]}],
-                    config={"max_output_tokens": 450}
-                )
-                st.markdown(res_text)
-                update_user_xp(st.session_state.user_session_id, 20)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-
-# =========================================================
-# TAB 7: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
+# TAB 2: ANUVĀDA-SETU (TRANSLATOR)
 # =========================================================
 with tab_trans:
-    st.markdown("#### 🌐 Sentence-by-Sentence Batch Translator (Up to 50 Sentences at Once)")
-    st.caption("Paste whole essays, paragraphs, or lists. The engine automatically splits into distinct sentences, translates each individually, provides Padaccheda/Sandhi breakdown, and enables audio playback.")
+    st.markdown("#### 🌐 Multi-Sentence & Paragraph Batch Translator (अनुवाद-सेतुः)")
+    t_dir = st.radio("Direction:", ["Any Language ➔ Sanskrit (संस्कृतम्)", "Sanskrit ➔ Regional Language / English"], horizontal=True)
     
-    col_t1, col_t2 = st.columns([1, 1])
-    with col_t1:
-        trans_direction = st.radio("Translation Direction:", ["Any Language ➔ Sanskrit (संस्कृतम्)", "Sanskrit (संस्कृतम्) ➔ Any Language"], horizontal=True)
-    with col_t2:
-        if trans_direction.startswith("Sanskrit"):
-            target_lang = st.selectbox("Translate to Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"])
-        else:
-            target_lang = "Sanskrit (Devanagari + IAST)"
+    render_autotype_mic("into the translation box")
+    t_input = st.text_area("Enter complete paragraph or sentences:", value="Knowledge gives humility. From humility comes worthiness. With wealth comes righteousness, and then happiness.", height=120)
     
-    input_text = st.text_area(
-        "Enter sentences or paragraph (Max 50 sentences):",
-        value="Speak Without Pressure. Take the quiz and start speaking your chosen language with an AI tutor today. Praktika helps you practice without pressure and turn short lessons into real progress.",
-        height=140
-    )
-    
-    detected_sentences = split_into_sentences(input_text, max_limit=50)
-    st.caption(f"📊 **Detected Sentences to Process:** `{len(detected_sentences)}` (Max batch: 50)")
-
-    if st.button("🚀 Translate Sentence-by-Sentence / वाक्यशः अनुवादं कुरु", use_container_width=True) and input_text.strip():
+    if st.button("🚀 Translate & Dissect Paragraph / सविस्तरम् अनुवादं कुरु", use_container_width=True) and t_input.strip():
         if not api_key:
-            st.warning("⚠️ Enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter Gemini API Key.")
             st.stop()
-        
         client = genai.Client(api_key=api_key)
-        with st.spinner(f"Translating {len(detected_sentences)} sentences with automatic rate-limit management..."):
+        with st.spinner("Analyzing syntax, Sandhi, and vocabulary..."):
             try:
-                BATCH_PROMPT = f"""You are a Sanskrit Grammatical Translation Engine.
-Translate the following array of {len(detected_sentences)} sentences individually.
-Direction: {trans_direction} (Target: {target_lang}).
+                t_prompt = f"""Translate the following text. Split sentence-by-sentence.
+Direction: {t_dir}.
+Return a JSON array of objects with keys:
+- "original": original sentence
+- "sanskrit": translated Sanskrit (Devanagari)
+- "iast": Romanized transliteration
+- "padaccheda": Sandhi and word-by-word grammatical dissection
+- "grammar_note": key Paninian rule or Vibhakti applied
 
-Input sentences array:
-{json.dumps(detected_sentences, ensure_ascii=False)}
-
-Return a STRICT JSON array of objects with exact keys:
-- "sentence_num": integer (1, 2, 3...)
-- "source_sentence": original sentence
-- "translated_sentence": translated sentence in target script
-- "iast": Romanized IAST transliteration
-- "padaccheda": Word-by-word grammatical Sandhi split with root meanings
-
-Ensure pure, natural, idiomatic translation for every single sentence.
+Text:
+{t_input}
 """
-                resp_text = generate_gemini_content(
-                    client=client,
-                    contents=[{"role": "user", "parts": [{"text": BATCH_PROMPT}]}],
-                    config={"temperature": 0.1},
-                    is_json=True
-                )
+                resp_json = generate_gemini_content(client, [{"role": "user", "parts": [{"text": t_prompt}]}], is_json=True)
+                results = json.loads(resp_json)
+                st.success(f"🎉 Translated {len(results)} sentences successfully! (+15 XP)")
+                update_user_xp(st.session_state.user_session_id, 15)
                 
-                batch_results = json.loads(resp_text)
-                st.success(f"🎉 Successfully translated all {len(batch_results)} sentences!")
-                
-                for item in batch_results:
-                    s_num = item.get("sentence_num", 1)
-                    src_s = item.get("source_sentence", "")
-                    tr_s = item.get("translated_sentence", "")
-                    iast_s = item.get("iast", "")
-                    pada_s = item.get("padaccheda", "")
-                    
-                    st.markdown(f"""
-                    <div class="sentence-card">
-                        <div style="font-weight:800; color:#FF8F00; font-size:0.95rem; margin-bottom:4px;">
-                            Sentence #{s_num}
-                        </div>
-                        <div style="font-size:0.95rem; opacity:0.85; margin-bottom:8px;">
-                            <b>Original:</b> {src_s}
-                        </div>
-                        <div style="font-size:1.15rem; color:#FFF; font-weight:700; margin-bottom:4px;">
-                            <b>अनुवादः:</b> {tr_s}
-                        </div>
-                        <div style="font-size:0.88rem; color:#FFD54F; margin-bottom:6px;">
-                            <b>IAST:</b> <i>{iast_s}</i>
-                        </div>
-                        <div style="font-size:0.82rem; color:#81C784; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:6px;">
-                            <b>पदच्छेदः एवं सन्धिविश्लेषणम् (Grammar):</b> {pada_s}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if trans_direction.startswith("Any"):
-                        audio_b64 = get_speech_audio_b64(tr_s, t_info["tld"], t_info["slow"])
-                        if audio_b64:
-                            st.audio(f"data:audio/mp3;base64,{audio_b64}", format="audio/mp3")
-
-                export_text = ""
-                for it in batch_results:
-                    export_text += f"[{it.get('sentence_num')}] Source: {it.get('source_sentence')}\nTranslation: {it.get('translated_sentence')}\nIAST: {it.get('iast')}\nPadaccheda: {it.get('padaccheda')}\n\n"
-                
-                st.download_button(
-                    label="📥 Download All Translated Sentences (.txt)",
-                    data=export_text,
-                    file_name="sanskrit_batch_translation.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-
+                for idx, item in enumerate(results, 1):
+                    with st.expander(f"Sentence #{idx}: {item.get('original', '')[:60]}...", expanded=True):
+                        st.markdown(f"**संस्कृतम्:** ### {item.get('sanskrit')}")
+                        st.markdown(f"**IAST:** *{item.get('iast')}*")
+                        st.markdown(f"**पदच्छेदः (Word Split):** `{item.get('padaccheda')}`")
+                        st.caption(f"💡 व्याकरणम्: {item.get('grammar_note')}")
+                        
+                        aud_b64 = get_speech_audio_b64(item.get('sanskrit', ''))
+                        if aud_b64:
+                            st.audio(f"data:audio/mp3;base64,{aud_b64}", format="audio/mp3")
             except Exception as e:
                 st.error(f"Translation Error: {str(e)}")
+
+# =========================================================
+# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES)
+# =========================================================
+with tab_amara:
+    st.markdown("#### 📖 अमरकोश-व्यूहः (Amarakośa Thesaurus & Synonym Arena)")
+    amara_game = st.selectbox("Choose Amarakośa Challenge:", ["1. Synonym Matching (पर्यायपद-मेलनम्)", "2. Odd One Out (विजातीय-पद-चयनम्)", "3. Word Hunt & Śloka Clues"])
+    
+    if amara_game.startswith("1"):
+        st.markdown("""
+        <div class="game-card">
+            <h4 style="color:#FF8F00; margin:0 0 6px 0;">🎯 Match the Classical Synonyms</h4>
+            <p style="font-size:0.88rem; color:#DDD;">Find the matching Amarakośa synonym for each base word.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.info("Word 1: **अग्निः (Fire)** ➔ ?")
+            a1 = st.selectbox("Select match for अग्निः:", ["वैश्वानरः (Amarakośa)", "तोयदः", "शशाङ्कः", "पादपः"], key="am_1")
+            st.info("Word 2: **सूर्यः (Sun)** ➔ ?")
+            a2 = st.selectbox("Select match for सूर्यः:", ["दिनकरः / मार्तण्डः", "जलधिः", "पन्नगः", "गिरीन्द्रः"], key="am_2")
+        with c2:
+            st.info("Word 3: **सिंहः (Lion)** ➔ ?")
+            a3 = st.selectbox("Select match for सिंहः:", ["मृगेन्द्रः / पञ्चाननः", "वारणः", "मर्कटः", "भुजङ्गः"], key="am_3")
+            st.info("Word 4: **पृथिवी (Earth)** ➔ ?")
+            a4 = st.selectbox("Select match for पृथिवी:", ["वसुन्धरा / मेदिनी", "गगनम्", "पवनः", "अर्णवः"], key="am_4")
+            
+        if st.button("Submit Amarakośa Matches / उत्तरं समर्पय", key="btn_amara"):
+            score = (a1.startswith("वैश्वानरः")) + (a2.startswith("दिनकरः")) + (a3.startswith("मृगेन्द्रः")) + (a4.startswith("वसुन्धरा"))
+            if score == 4:
+                st.balloons()
+                st.success("🏆 सम्पूर्णं सत्यम्! All 4 synonyms matched accurately! (+40 XP)")
+                update_user_xp(st.session_state.user_session_id, 40)
+            else:
+                st.warning(f"Score: {score}/4. Review the Amarakośa verses and retry!")
+
+    elif amara_game.startswith("2"):
+        st.markdown("##### 🔍 Identify the Intruder (Which word is NOT a synonym?)")
+        st.markdown("**Group:** `[चन्द्रः, हिमांशुः, सुधाकरः, भास्करः]`")
+        intruder = st.radio("Which word does not belong to the group?", ["चन्द्रः (Moon)", "हिमांशुः (Moon)", "सुधाकरः (Moon)", "भास्करः (Sun - Intruder)"])
+        if st.button("Check Intruder"):
+            if "भास्करः" in intruder:
+                st.success("✅ साधु! 'भास्करः' means Sun, while the rest are synonyms for the Moon. (+15 XP)")
+                update_user_xp(st.session_state.user_session_id, 15)
+            else:
+                st.error("❌ Incorrect. Try again!")
+
+    else:
+        st.markdown("##### 📜 Amarakośa Verse Clue & Word Hunt")
+        st.code("खं नभो रोदसी चाभ्रं पुष्करं विष्णुपदं नमः। (अमरकोशः १.२.१)")
+        ans_hunt = st.text_input("Which cosmic entity is described in this Amarakośa verse? (English/Sanskrit):")
+        if st.button("Verify Clue"):
+            if any(k in ans_hunt.lower() for k in ["sky", "space", "आकाश", "गगन", "द्यौः"]):
+                st.success("🎉 उत्कृष्टम्! It lists synonyms for Sky/Space (आकाशः)! (+25 XP)")
+                update_user_xp(st.session_state.user_session_id, 25)
+            else:
+                st.info("💡 Hint: It refers to the celestial firmament / Sky (आकाशः).")
+
+# =========================================================
+# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA)
+# =========================================================
+with tab_rupa:
+    st.markdown("#### 🏛️ रूप-साधना (Śabdarūpa & Dhāturūpa Matrix Drills)")
+    r_mode = st.radio("Select Grammar Discipline:", ["1. Śabdarūpa Declension Grid (शब्दरूपाणि)", "2. Dhāturūpa Tense Matcher (धातुरूपाणि)"], horizontal=True)
+    
+    if r_mode.startswith("1"):
+        st.markdown("##### 🧩 Complete the Declension Grid for **'राम' (अकारान्त पुंल्लिङ्ग)**")
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+            st.caption("प्रथमा (Nominative):")
+            r1 = st.text_input("एकवचनम्:", value="रामः", disabled=True)
+            r2 = st.text_input("द्विवचनम् (Fill):", key="r_dvi")
+            r3 = st.text_input("बहुवचनम् (Fill):", key="r_bahu")
+        with col_g2:
+            st.caption("तृतीया (Instrumental):")
+            r4 = st.text_input("एकवचनम् (Fill):", key="r_inst_1")
+            r5 = st.text_input("द्विवचनम्:", value="रामाभ्याम्", disabled=True)
+            r6 = st.text_input("बहुवचनम् (Fill):", key="r_inst_3")
+        with col_g3:
+            st.caption("सप्तमी (Locative):")
+            r7 = st.text_input("एकवचनम् (Fill):", key="r_loc_1")
+            r8 = st.text_input("द्विवचनम् (Fill):", key="r_loc_2")
+            r9 = st.text_input("बहुवचनम्:", value="रामेषु", disabled=True)
+
+        if st.button("Validate Declension Matrix / रूप-परीक्षणम्"):
+            c_dvi = (r2.strip() in ["रामौ", "ramau"])
+            c_bahu = (r3.strip() in ["रामाः", "ramaah", "ramAH"])
+            c_inst1 = (r4.strip() in ["रामेण", "ramena", "rameNa"])
+            c_inst3 = (r6.strip() in ["रामैः", "ramaih", "ramaiH"])
+            c_loc1 = (r7.strip() in ["रामे", "rame"])
+            c_loc2 = (r8.strip() in ["रामयोः", "ramayoh", "ramayoH"])
+            
+            total_corr = c_dvi + c_bahu + c_inst1 + c_inst3 + c_loc1 + c_loc2
+            if total_corr == 6:
+                st.balloons()
+                st.success("🏆 सम्पूर्णं शुद्धम्! All 6 declension slots are perfectly accurate! (+50 XP)")
+                update_user_xp(st.session_state.user_session_id, 50)
+            else:
+                st.warning(f"Score: {total_corr}/6 correct. Check Vibhakti endings and retry!")
+
+    else:
+        st.markdown("##### ⚡ Dhāturūpa Tense & Mood Classifier")
+        dh_sample = st.selectbox("Analyze Verb Form:", ["पठिष्यति (Root: पठ्)", "अगच्छत् (Root: गम्)", "भवतु (Root: भू)", "कुर्यात् (Root: कृ)"])
+        
+        c_lakara = st.selectbox("Select the correct Lakāra (Tense/Mood):", [
+            "लट् (Present Tense)",
+            "लृट् (Future Tense)",
+            "लङ् (Past Imperfect)",
+            "लोट् (Imperative Mood)",
+            "विधिलिङ् (Potential/Optative Mood)"
+        ])
+        if st.button("Submit Lakāra Assessment"):
+            is_right = False
+            if "पठिष्यति" in dh_sample and "लृट्" in c_lakara: is_right = True
+            elif "अगच्छत्" in dh_sample and "लङ्" in c_lakara: is_right = True
+            elif "भवतु" in dh_sample and "लोट्" in c_lakara: is_right = True
+            elif "कुर्यात्" in dh_sample and "विधिलिङ्" in c_lakara: is_right = True
+            
+            if is_right:
+                st.success("✅ साधु! Correct Lakāra identified accurately! (+20 XP)")
+                update_user_xp(st.session_state.user_session_id, 20)
+            else:
+                st.error("❌ Incorrect Lakāra. Review verbal suffixes (-ष्यति, अ- -त्, -तु, -यात्).")
+
+# =========================================================
+# TAB 5: CHANDAḤ & ŚIKṢĀ (PHONETICS & METRES)
+# =========================================================
+with tab_chandas:
+    st.markdown("#### 🕉️ छन्दः-शास्त्रम् एवं पाणिनीय-शिक्षा (Metre & Phonetic Spectrum)")
+    
+    st.markdown("##### 🌊 Live Vocal Pitch Spectrum (स्वर-तरङ्गिणी)")
+    components.html("""
+    <div style="font-family:sans-serif; background:#120B02; border:2px solid #FF8F00; border-radius:12px; padding:12px; color:#FFF;">
+        <button id="pBtn" onclick="toggleAud()" style="background:#E65100; color:white; border:none; padding:6px 16px; border-radius:16px; font-weight:bold; cursor:pointer;">
+            🔴 Activate Live Pitch Spectrum
+        </button>
+        <span id="pTxt" style="font-size:0.8rem; margin-left:10px; color:#AAA;">Tap to test your voice against the ideal harmonic.</span>
+        <canvas id="c" width="600" height="90" style="width:100%; height:90px; background:#080401; margin-top:8px; border-radius:8px;"></canvas>
+    </div>
+    <script>
+        var actx=null, an=null, mic=null, on=false, aid=null;
+        async function toggleAud() {
+            var b = document.getElementById("pBtn");
+            if(!on) {
+                try {
+                    actx = new (window.AudioContext || window.webkitAudioContext)();
+                    mic = await navigator.mediaDevices.getUserMedia({audio:true});
+                    var s = actx.createMediaStreamSource(mic);
+                    an = actx.createAnalyser(); an.fftSize = 1024;
+                    s.connect(an); on=true; b.style.background="#2E7D32"; b.innerText="⏹️ Stop Visualizer";
+                    draw();
+                } catch(e){ alert(e.message); }
+            } else {
+                if(mic) mic.getTracks().forEach(t=>t.stop());
+                if(actx) actx.close();
+                cancelAnimationFrame(aid); on=false; b.style.background="#E65100"; b.innerText="🔴 Activate Live Pitch Spectrum";
+            }
+        }
+        function draw() {
+            if(!on) return;
+            aid = requestAnimationFrame(draw);
+            var cv = document.getElementById("c"), cx = cv.getContext("2d");
+            var buf = an.frequencyBinCount, td = new Uint8Array(buf);
+            an.getByteTimeDomainData(td);
+            cx.fillStyle="#080401"; cx.fillRect(0,0,cv.width,cv.height);
+            cx.lineWidth=2; cx.strokeStyle="#81C784"; cx.beginPath();
+            var sw = cv.width*1.0/buf, x=0;
+            for(var i=0;i<buf;i++) {
+                var v = td[i]/128.0, y = v*(cv.height/2);
+                if(i===0) cx.moveTo(x,y); else cx.lineTo(x,y);
+                x += sw;
+            }
+            cx.lineTo(cv.width, cv.height/2); cx.stroke();
+        }
+    </script>
+    """, height=155)
+
+    st.write("---")
+    st.markdown("##### 📜 Pingala Chandaḥ Verse Scansion Engine")
+    v_scan = st.text_area("Enter Sanskrit verse for Laghu (।) & Guru (ऽ) syllabic scansion:", value="वागर्थाविव सम्प्रुक्तौ वागर्थप्रतिपत्तये।\nजगतः पितरौ वन्दे पार्वतीपरमेश्वरौ॥", height=70)
+    if st.button("Scan Metre / छन्दो-विश्लेषणम्"):
+        if not api_key:
+            st.warning("⚠️ Enter Gemini API Key.")
+            st.stop()
+        client = genai.Client(api_key=api_key)
+        with st.spinner("Scansion in progress..."):
+            try:
+                res = generate_gemini_content(client, [{"role": "user", "parts": [{"text": f"Scan Pingala Chandas for: '{v_scan}'. Return: 1. Metre Name, 2. Laghu/Guru mapping, 3. Gana breakdown."}]}])
+                st.markdown(res)
+                update_user_xp(st.session_state.user_session_id, 20)
+            except Exception as e:
+                st.error(str(e))
+
+# =========================================================
+# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS)
+# =========================================================
+with tab_motto:
+    st.markdown("#### 🚩 संस्था-ध्येयवाक्य-क्रीडा (National & Global Sanskrit Mottos)")
+    st.caption("Discover how modern institutions derive their guiding principles from timeless Sanskrit literature.")
+    
+    mottos_db = [
+        {"motto": "सत्यमेव जयते", "meaning": "Truth alone triumphs", "org": "Republic of India (भारत-सर्वकारः)", "source": "Muṇḍaka Upaniṣad (३.१.६)"},
+        {"motto": "योगक्षेमं वहाम्यहम्", "meaning": "I secure what they have and provide what they lack", "org": "Life Insurance Corporation of India (LIC)", "source": "Bhagavad Gītā (९.२२)"},
+        {"motto": "धर्मो रक्षति रक्षितः", "meaning": "Dharma protects those who protect it", "org": "Supreme Court / R&AW / NLSIU", "source": "Mahābhārata (Vana Parva)"},
+        {"motto": "नभःस्पृशं दीप्तम्", "meaning": "Touch the Sky with Glory", "org": "Indian Air Force (भारतीय-वायुसेना)", "source": "Bhagavad Gītā (११.२४)"},
+        {"motto": "विद्यामृतमश्नुते", "meaning": "Attain immortality through knowledge", "org": "NCERT", "source": "Īśāvāsya Upaniṣad (११)"},
+        {"motto": "शं नो वरुणः", "meaning": "May the Lord of Oceans be auspicious unto us", "org": "Indian Navy (भारतीय-नौसेना)", "source": "Taittirīya Upaniṣad (१.१.१)"}
+    ]
+    
+    for m in mottos_db:
+        st.markdown(f"""
+        <div class="motto-badge">
+            <h4 style="color:#FFD54F; margin:0;">🚩 "{m['motto']}"</h4>
+            <div style="font-size:0.95rem; color:#FFF; margin-top:2px;"><b>Institution:</b> {m['org']}</div>
+            <div style="font-size:0.85rem; color:#81C784;"><b>Scriptural Source:</b> {m['source']} | <i>"{m['meaning']}"</i></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.write("---")
+    st.markdown("##### 🎮 Quiz: Identify the Scriptural Source")
+    m_quiz = st.radio("Where is the motto **'योगक्षेमं वहाम्यहम्'** taken from?", ["Bhagavad Gītā (Chapter 9)", "Muṇḍaka Upaniṣad", "Rāmāyaṇa", "Ṛgveda"])
+    if st.button("Verify Motto Source"):
+        if "Bhagavad Gītā" in m_quiz:
+            st.success("🎉 उत्कृष्टम्! It is spoken by Śrī Kṛṣṇa in Bhagavad Gītā Chapter 9, Verse 22! (+25 XP)")
+            update_user_xp(st.session_state.user_session_id, 25)
+        else:
+            st.error("❌ Incorrect. Review Chapter 9 (Rāja-Vidyā-Rāja-Guhya-Yoga).")
+
+# =========================================================
+# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & FESTIVALS)
+# =========================================================
+with tab_samskriti:
+    st.markdown("#### 🛕 संस्कृति-ज्ञानम् (Vedic Literature, Pañcāṅga Tithis & Festivals)")
+    s_mode = st.selectbox("Select Cultural Domain:", ["1. Pañcāṅga Tithi & Festival Matcher", "2. Vedic Literature & Upaniṣad Tree", "3. True / False Cultural Lightning Quiz"])
+    
+    if s_mode.startswith("1"):
+        st.markdown("##### 📅 Match the Vedic Tithi to its Festival:")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            t1 = st.selectbox("1. श्रावण-पूर्णिमा (Śrāvaṇa Pūrṇimā):", ["रक्षाबन्धनम् / संस्कृत-दिनम्", "दीपावली", "होली", "विजयादशमी"])
+            t2 = st.selectbox("2. कार्तिक-अमावास्या (Kārttika Amāvāsyā):", ["दीपावली (Dīpāvalī)", "महाशिवरात्रिः", "रामनवमी", "गणेश-चतुर्थी"])
+        with col_f2:
+            t3 = st.selectbox("3. फाल्गुन-पूर्णिमा (Phālguna Pūrṇimā):", ["होलिकोत्सवः (Holī)", "रथयात्रा", "मकर-सङ्क्रान्तिः", "गुरु-पूर्णिमा"])
+            t4 = st.selectbox("4. भाद्रपद-शुक्ल-चतुर्थी:", ["विनायक-चतुर्थी (Ganesha Chaturthi)", "जन्माष्टमी", "दशहरा", "उगादिः"])
+            
+        if st.button("Submit Pañcāṅga Assessment"):
+            f_score = (t1.startswith("रक्षाबन्धनम्")) + (t2.startswith("दीपावली")) + (t3.startswith("होलिकोत्सवः")) + (t4.startswith("विनायक"))
+            if f_score == 4:
+                st.balloons()
+                st.success("🏆 सम्पूर्णं सत्यम्! All 4 Pañcāṅga festival dates matched accurately! (+40 XP)")
+                update_user_xp(st.session_state.user_session_id, 40)
+            else:
+                st.warning(f"Score: {f_score}/4. Review the Indian calendar and retry!")
+
+    elif s_mode.startswith("2"):
+        st.markdown("##### 📜 Vedic Heritage Tree")
+        st.markdown("""
+        * **ऋग्वेदः:** ऐतरेयोपनिषद् • शाकल-शाखा • गायत्री-मन्त्रः (३.६२.१०)
+        * **यजुर्वेदः (शुक्ल/कृष्ण):** ईशावास्योपनिषद्, बृहदारण्यकोपनिषद्, तैत्तिरीयोपनिषद्
+        * **सामवेदः:** छान्दोग्योपनिषद्, केनोपनिषद् (गान-परम्परा)
+        * **अथर्ववेदः:** मुण्डकोपनिषद्, माण्डूक्योपनिषद्, प्रश्नोपनिषद्
+        """)
+        q_v = st.radio("Which Upaniṣad contains the famous Mahāvākya **'अयमात्मा ब्रह्म'**?", ["माण्डूक्योपनिषद् (Atharvaveda)", "छान्दोग्योपनिषद्", "ईशावास्योपनिषद्"])
+        if st.button("Submit Veda Quiz"):
+            if "माण्डूक्योपनिषद्" in q_v:
+                st.success("✅ सत्यम्! Māṇḍūkya Upaniṣad (Atharvaveda) declares 'अयमात्मा ब्रह्म'. (+20 XP)")
+                update_user_xp(st.session_state.user_session_id, 20)
+            else:
+                st.error("❌ Incorrect. Try again!")
+
+    else:
+        st.markdown("##### ⚡ True / False Lightning Drill")
+        tf1 = st.radio("1. Pāṇini's Aṣṭādhyāyī contains approximately 4,000 grammatical sūtras.", ["True (सत्यम्)", "False (असत्यम्)"])
+        tf2 = st.radio("2. The Gāyatrī Mantra is addressed to the solar deity Savitṛ in the Ṛgveda.", ["True (सत्यम्)", "False (असत्यम्)"])
+        if st.button("Submit Lightning Quiz"):
+            if tf1.startswith("True") and tf2.startswith("True"):
+                st.success("🏆 Both facts are correct! (+30 XP)")
+                update_user_xp(st.session_state.user_session_id, 30)
+            else:
+                st.warning("Review the history of Sanskrit literature and retry.")
