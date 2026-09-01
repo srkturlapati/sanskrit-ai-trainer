@@ -5,6 +5,7 @@ import io
 import sqlite3
 import datetime
 import base64
+import asyncio
 
 # Enforce UTF-8 encoding
 if sys.stdout.encoding != 'utf-8':
@@ -17,6 +18,7 @@ from google import genai
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
+import edge_tts
 import streamlit as st
 
 # --- PAGE CONFIGURATION ---
@@ -130,7 +132,7 @@ def get_all_feedbacks():
     conn.close()
     return rows
 
-# --- TALKING ROBOT & VEDIC CSS STYLING ---
+# --- UI & AVATAR CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -145,7 +147,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* ROBO AVATAR & TALKING ANIMATION */
     .avatar-wrapper {
         position: relative;
         width: 120px;
@@ -193,7 +194,6 @@ st.markdown("""
         100% { height: 8px; width: 24px; border-radius: 50%; }
     }
 
-    /* Active Voice Prompter Box */
     .voice-prompt-box {
         background: rgba(255, 111, 0, 0.08);
         border: 2px dashed #FF8F00;
@@ -237,44 +237,88 @@ male_src, male_status = get_avatar_img("male_guru", "https://upload.wikimedia.or
 female_src, female_status = get_avatar_img("female_guru", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png")
 child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs")
 
+# --- DISTINCT NEURAL VOICES CONFIGURATION ---
 TEACHERS = {
     "Male Guru (आचार्यः वसिष्ठः)": {
         "title": "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)",
-        "desc": "Classical Guru • Deep Pāṇinian Master",
+        "desc": "Classical Guru • Deep, Authoritative Neural Voice",
         "img": male_src,
         "status": male_status,
-        "tld": "co.in",
-        "is_slow": True
+        "voice": "hi-IN-MadhurNeural",
+        "rate": "+0%",
+        "pitch": "-4Hz"
     },
     "Female Āchāryā (आचार्या गार्गी)": {
         "title": "आचार्या गार्गी (Acharyaa Gargi)",
-        "desc": "Scholarly Preceptor • Warm Socratic Mentor",
+        "desc": "Scholarly Preceptor • Clear, Melodic Neural Voice",
         "img": female_src,
         "status": female_status,
-        "tld": "com",
-        "is_slow": False
+        "voice": "hi-IN-SwaraNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz"
     },
     "Child Peer (बालकः ध्रुवः)": {
         "title": "बालकः ध्रुवः (Balaka Dhruva)",
-        "desc": "Playful Young Peer • Fast & Cheerful Cadence",
+        "desc": "Playful Young Peer • Fast, High-Pitched Child Voice",
         "img": child_src,
         "status": child_status,
-        "tld": "co.uk",
-        "is_slow": False
+        "voice": "hi-IN-SwaraNeural",
+        "rate": "+15%",
+        "pitch": "+25Hz"
     }
 }
 
-def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
-    clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
+# --- ASYNC HIGH-FIDELITY TTS ENGINE ---
+async def generate_speech_bytes(text: str, voice_name: str, rate: str, pitch: str) -> bytes:
+    communicate = edge_tts.Communicate(text, voice_name, rate=rate, pitch=pitch)
+    mp3_data = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            mp3_data += chunk["data"]
+    return mp3_data
+
+def synthesize_voice(clean_text: str, teacher_key: str) -> bytes:
+    cfg = TEACHERS[teacher_key]
+    try:
+        # Generate distinct neural voice
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        audio_bytes = loop.run_until_complete(generate_speech_bytes(clean_text, cfg["voice"], cfg["rate"], cfg["pitch"]))
+        loop.close()
+        if audio_bytes:
+            return audio_bytes
+    except Exception:
+        pass
+    
+    # Fallback to gTTS if network is restricted
+    try:
+        tts = gTTS(text=clean_text, lang='hi', slow=(teacher_key.startswith("Male")))
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        return fp.getvalue()
+    except Exception:
+        return b""
+
+# Helper: Extract the ENTIRE Sanskrit speech block completely
+def extract_complete_sanskrit_speech(reply_content: str) -> str:
+    if "[संस्कृतम्]:" in reply_content:
+        part = reply_content.split("[संस्कृतम्]:")[1]
+        for marker in ["[IAST]:", "[English]:", "[✨ Say It Better]:", "[मार्गदर्शनम्]"]:
+            if marker in part:
+                part = part.split(marker)[0]
+        return part.replace('*', '').replace('#', '').replace('-', '').strip()
+    return ""
+
+def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
+    clean_text = sanskrit_text.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
     if not clean_text:
         return
     cfg = TEACHERS[teacher_key]
     try:
-        tts = gTTS(text=clean_text, lang='hi', tld=cfg["tld"], slow=cfg["is_slow"])
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        audio_b64 = base64.b64encode(fp.read()).decode()
+        raw_audio = synthesize_voice(clean_text, teacher_key)
+        if not raw_audio:
+            return
+        audio_b64 = base64.b64encode(raw_audio).decode()
         
         elem_id = f"audio_{int(time.time()*1000)}"
         st.markdown(f"""
@@ -284,7 +328,7 @@ def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
                 <div class="talking-lip"></div>
             </div>
             <div style="flex-grow:1;">
-                <div class="status-badge">🟢 AI Tutor Speaking (वदति)</div>
+                <div class="status-badge">🟢 AI Voice Speaking ({cfg['title'].split('(')[0].strip()})</div>
                 <div style="font-weight:700; color:#FF8F00; font-size:1.05rem;">{cfg['title']}</div>
                 <audio id="{elem_id}" controls {'autoplay' if auto_play else ''} style="width:100%; height:36px; margin-top:6px;">
                     <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
@@ -306,11 +350,11 @@ def render_talking_avatar(text_to_speak: str, teacher_key: str, auto_play=True):
     except Exception:
         pass
 
-# --- HERO ---
+# --- APP HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Pro (सम्भाषण-प्रशिक्षकः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.9;">Interactive Voice-to-Voice AI Sanskrit Tutor • Continuous Microphone Loop • Talking Avatars</p>
+    <p style="margin:4px 0 0 0; opacity:0.9;">Complete Neural Voice Engine • Distinct Male/Female/Child Personas • Continuous Loop</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -318,7 +362,7 @@ st.markdown("""
 u_name, u_lvl, u_strk, u_xp = get_user()
 
 with st.sidebar:
-    st.markdown("### 🎙️ **Teacher & Voice Selection**")
+    st.markdown("### 🎙️ **Teacher & Neural Voice**")
     selected_teacher = st.selectbox("Active Guide:", list(TEACHERS.keys()), index=0)
     t_info = TEACHERS[selected_teacher]
     
@@ -327,7 +371,7 @@ with st.sidebar:
         <img src="{t_info['img']}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #FF8F00; margin-bottom:6px;"/>
         <div style="font-weight:700; color:#FF8F00;">{t_info['title']}</div>
         <div style="font-size:0.75rem; opacity:0.8;">{t_info['desc']}</div>
-        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Image: {t_info['status']}</div>
+        <div style="font-size:0.7rem; color:#81C784; margin-top:4px;">Voice: {t_info['voice']}</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -358,7 +402,6 @@ with st.sidebar:
         st.session_state.turn_count = 0
         st.rerun()
 
-# Dynamic Session State
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "turn_count" not in st.session_state:
@@ -367,9 +410,13 @@ if "turn_count" not in st.session_state:
 FAST_SYSTEM_PROMPT = f"""You are '{t_info['title']}', an interactive conversational Sanskrit tutor speaking with the student.
 Student Tier: {target_tier}.
 
-CRITICAL: Respond concisely within 2-4 sentences in spoken Sarala Samskritam. Always conclude with a conversational question to invite the student to speak next.
-Format ALWAYS:
-[संस्कृतम्]: <Simple spoken Sanskrit dialogue>
+CRITICAL RULES:
+1. Speak in pure, clear spoken Sarala Samskritam.
+2. Keep the response to 2-4 complete sentences.
+3. Conclude with a question to prompt the student to speak next.
+
+MANDATORY FORMAT:
+[संस्कृतम्]: <Complete spoken Sanskrit sentences>
 [IAST]: <Romanized transliteration>
 [English]: <English meaning>
 [✨ Say It Better]: <One short idiomatic Sanskrit upgrade>
@@ -403,17 +450,17 @@ with tab_roleplay:
         ]
     )
     
-    # 1. Display Chat History with Talking Robo Avatar & Remarks Under Every Response
+    # 1. Display Chat History with Complete Talking Avatar Audio
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
             if role == "assistant":
-                if "[संस्कृतम्]:" in msg["content"]:
-                    sanskrit_text = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-                    render_talking_avatar(sanskrit_text, selected_teacher, auto_play=False)
+                full_sanskrit = extract_complete_sanskrit_speech(msg["content"])
+                if full_sanskrit:
+                    render_talking_avatar(full_sanskrit, selected_teacher, auto_play=False)
                 
-                # Inline Remark / Feedback Expander
+                # Remarks Widget
                 with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
                     fb_type = st.selectbox(
                         "Remark Type:",
@@ -432,7 +479,7 @@ with tab_roleplay:
                         save_feedback(selected_teacher, prior_user_msg, msg["content"], fb_type, user_remark)
                         st.success("✅ Remark saved into SQLite database! (View in Tab 6)")
 
-    # 2. ALWAYS-VISIBLE CONTINUOUS MICROPHONE PROMPTER
+    # 2. CONTINUOUS MICROPHONE PROMPTER
     st.markdown("""
     <div class="voice-prompt-box">
         <h4 style="margin:0; color:#FF8F00;">🎙️ अधुना भवान् वदतु (Your Turn to Speak)</h4>
@@ -440,7 +487,6 @@ with tab_roleplay:
     </div>
     """, unsafe_allow_html=True)
     
-    # Dynamic key ensures microphone is fresh and ready on every conversational turn
     user_audio = st.audio_input("Record voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
 
     # Process Audio Input
@@ -466,10 +512,10 @@ with tab_roleplay:
                             "role": "user",
                             "parts": [
                                 {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen to student speech and reply directly in character."}
+                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen to student speech and reply directly."}
                             ]
                         }],
-                        config={"temperature": 0.2, "max_output_tokens": 500}
+                        config={"temperature": 0.2, "max_output_tokens": 600}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
@@ -477,9 +523,9 @@ with tab_roleplay:
                     st.markdown(reply_text)
                     st.caption(f"⚡ *Response Latency: {latency}s*")
                     
-                    if "[संस्कृतम्]:" in reply_text:
-                        sanskrit_text = reply_text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-                        render_talking_avatar(sanskrit_text, selected_teacher, auto_play=True)
+                    full_sanskrit = extract_complete_sanskrit_speech(reply_text)
+                    if full_sanskrit:
+                        render_talking_avatar(full_sanskrit, selected_teacher, auto_play=True)
                     
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
                     st.session_state.turn_count += 1
@@ -511,7 +557,7 @@ with tab_roleplay:
                     resp = client.models.generate_content(
                         model=ACTIVE_MODEL,
                         contents=contents,
-                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 500}
+                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 600}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
@@ -519,9 +565,9 @@ with tab_roleplay:
                     st.markdown(reply_text)
                     st.caption(f"⚡ *Response Latency: {latency}s*")
                     
-                    if "[संस्कृतम्]:" in reply_text:
-                        sanskrit_text = reply_text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-                        render_talking_avatar(sanskrit_text, selected_teacher, auto_play=True)
+                    full_sanskrit = extract_complete_sanskrit_speech(reply_text)
+                    if full_sanskrit:
+                        render_talking_avatar(full_sanskrit, selected_teacher, auto_play=True)
                         
                     st.session_state.chat_history.append({"role": "model", "content": reply_text})
                     st.session_state.turn_count += 1
@@ -652,8 +698,9 @@ with tab_trans:
                 )
                 st.markdown(resp.text)
                 if "संस्कृतम्" in resp.text:
-                    s_line = resp.text.split("संस्कृतम्")[1].split("\n")[0].replace(':', '').replace('(Devanagari)', '').strip()
-                    render_talking_avatar(s_line, selected_teacher, auto_play=False)
+                    full_s = extract_complete_sanskrit_speech(resp.text)
+                    if full_s:
+                        render_talking_avatar(full_s, selected_teacher, auto_play=False)
             except Exception as e:
                 st.error(f"Error: {str(e)}")
 
