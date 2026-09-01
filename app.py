@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import io
+import datetime
 
 # Ensure UTF-8 encoding across environments
 if sys.stdout.encoding != 'utf-8':
@@ -17,67 +18,33 @@ from gtts import gTTS
 import streamlit as st
 
 st.set_page_config(
-    page_title="Sanskrit AI Platform",
+    page_title="Sambhāṣaṇa AI - Spoken Sanskrit Master",
     page_icon="🚩",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-st.title("🚩 Sanskrit AI Platform")
-st.caption("सम्भाषणम् • अनुवादकः • व्याकरणम् • परीक्षा | Voice-Enabled Sanskrit Ecosystem")
+st.title("🚩 Sambhāṣaṇa AI (सम्भाषण-प्रशिक्षकः)")
+st.caption("AI-Powered Spoken Sanskrit Academy • Fluency • Phonetics • Roleplay")
 
-# --- SIDEBAR: Settings & Navigation ---
-with st.sidebar:
-    st.header("⚙️ Settings & Modules / विन्यासः")
-    api_key = st.text_input(
-        "Google Gemini API Key",
-        type="password",
-        placeholder="AIza...",
-        value=os.getenv("GEMINI_API_KEY", ""),
-        help="Get your free key at aistudio.google.com/apikey",
-    )
-    
-    app_module = st.radio(
-        "Select Active Module / विभागः",
-        [
-            "💬 Module 1: Sambhashanam (सम्भाषणम्)",
-            "🌐 Module 1: Universal Translation (अनुवादकः)",
-            "🧩 Module 2: Vyakarana Engine (व्याकरणम्)",
-            "📝 Module 3: Pariksha & Drills (परीक्षा)"
-        ],
-        index=0
-    )
-    
-    level = st.selectbox(
-        "Proficiency Tier / स्तरः",
-        [
-            "Beginner (प्रथमा - Basic)",
-            "Intermediate (मध्यमा - Moderate)",
-            "Advanced (उत्तमा - Classical/Shastric)"
-        ],
-        index=0,
-    )
-    
-    if "Universal Translation" in app_module:
-        trans_direction = st.selectbox(
-            "Translation Mode",
-            ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"]
-        )
-        if trans_direction == "Sanskrit ➔ Any Language":
-            target_lang = st.selectbox(
-                "Target Language / लक्ष्यभाषा",
-                ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)", "Malayalam (മലയാളം)", "Bengali (বাংলা)", "Gujarati (ગુજરાતી)"]
-            )
-    
-    if st.button("🔄 Reset Module Session"):
-        st.session_state.messages = []
-        st.session_state.current_quiz = None
-        st.rerun()
+# --- SESSION STATE: Gamification & Vocabulary Vault ---
+if "practice_streak" not in st.session_state:
+    st.session_state.practice_streak = 1
+if "vocab_vault" not in st.session_state:
+    st.session_state.vocab_vault = [
+        {"word": "अस्तु", "meaning": "Alright / Let it be", "level": "Beginner"},
+        {"word": "धन्यवादः", "meaning": "Thank you", "level": "Beginner"},
+        {"word": "पुनर्मिलामः", "meaning": "See you again", "level": "Beginner"}
+    ]
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "current_quiz" not in st.session_state:
+    st.session_state.current_quiz = None
 
-# Helper function for Sanskrit Audio Playback (TTS)
+# Helper: Sanskrit TTS Audio
 def play_sanskrit_audio(text_to_speak: str):
     try:
-        clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').strip()
+        clean_text = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
         if not clean_text:
             return
         tts = gTTS(text=clean_text, lang='hi', slow=False)
@@ -88,315 +55,345 @@ def play_sanskrit_audio(text_to_speak: str):
     except Exception:
         pass
 
+# --- SIDEBAR: Settings & Gamification Profile ---
+with st.sidebar:
+    st.header("⚙️ Settings & Profile")
+    api_key = st.text_input(
+        "Google Gemini API Key",
+        type="password",
+        placeholder="AIza...",
+        value=os.getenv("GEMINI_API_KEY", ""),
+        help="Get your free key at aistudio.google.com/apikey",
+    )
+    
+    level = st.selectbox(
+        "Student Level / स्तरः",
+        [
+            "Beginner (प्रथमा - Daily Phrases & Basic Verbs)",
+            "Intermediate (मध्यमा - Tenses, Participles & Flow)",
+            "Advanced (उत्तमा - Shastric & Literary Sanskrit)"
+        ],
+        index=0,
+    )
+    
+    st.write("---")
+    st.subheader("🏆 Your Progress")
+    st.metric(label="🔥 Daily Speaking Streak", value=f"{st.session_state.practice_streak} Days")
+    st.metric(label="📚 Words in Vault", value=f"{len(st.session_state.vocab_vault)} Words")
+    
+    if st.button("🔄 Reset Chat / Clear Session"):
+        st.session_state.messages = []
+        st.session_state.current_quiz = None
+        st.rerun()
+
+# --- TOP NAVIGATION TABS ---
+tab_roleplay, tab_shiksha, tab_translate, tab_grammar, tab_vault = st.tabs([
+    "💬 1. Roleplay & Tutor",
+    "🎙️ 2. Śikṣā (Pronunciation)",
+    "🌐 3. Translation",
+    "🧩 4. Vyākaraṇa",
+    "🏆 5. Vault & Parīkṣā"
+])
+
 
 # =========================================================
-# MODULE 1: SAMBHASHANAM (Conversational Tutor + Voice)
+# TAB 1: SITUATIONAL ROLEPLAY & CONVERSATION
 # =========================================================
-if "Sambhashanam" in app_module:
-    SYSTEM_PROMPT = f"""You are "Acharya AI" (आचार्यः), a pedagogical Sanskrit tutor specializing in Sarala Samskritam.
-Current Student Level: {level}.
+with tab_roleplay:
+    st.subheader("💬 सम्भाषण-प्रसङ्गाः (Speaking Scenarios)")
+    
+    scenario = st.selectbox(
+        "Choose Conversation Scenario / प्रसङ्गः",
+        [
+            "General Conversation with Ācārya (मुक्त-सम्भाषणम्)",
+            "At the Market / Vegetables (विपणिः - शाकक्रयणम्)",
+            "At School / Gurukula (पाठशाला - गुरुकुलम्)",
+            "Travel & Directions (यात्रा - मार्गनिर्देशनम्)",
+            "Welcoming a Guest (अतिथि-सत्कारः)",
+            "Storyteller Mode with Animals (पञ्चतन्त्र-कथा: गजः, शुकः, मयूरः)"
+        ]
+    )
+
+    SYSTEM_ROLEPLAY = f"""You are a dynamic Sanskrit Spoken Coach in the scenario: '{scenario}'.
+Target Student Level: {level}.
 
 Rules:
-1. Converse naturally in simple Sanskrit suited to the level.
-2. If student speaks/writes with an error (Vibhakti, Lakara, Purusha, Sandhi):
-   - Highlight the error gently.
-   - Provide a Socratic hint or question so they can self-correct.
-3. Always format your output cleanly as:
-[संस्कृतम्]: <Devanagari text>
-[IAST]: <IAST transliteration>
+1. Converse naturally in spoken Sarala Samskritam according to the scenario.
+2. If the student makes an error (Vibhakti, Lakara, Purusha), gently point it out.
+3. Provide a '✨ Say It Better' suggestion (a more natural/idiomatic Sanskrit expression).
+4. Keep the roleplay engaging and ask a relevant question back.
+
+Format:
+[संस्कृतम्]: <Devanagari Dialogue>
+[IAST]: <Romanized transliteration>
 [English]: <English meaning>
-[मार्गदर्शनम्] (Include ONLY if error is present):
-- Error: <Student mistake>
-- Hint: <Guiding hint or rule>
+[✨ Say It Better]: <Alternative idiomatic phrase in Sanskrit with meaning>
+[मार्गदर्शनम्] (Only if student made an error):
+- 🔍 रूपम्: <Incorrect word>
+- 💡 सङ्केतः: <Correction & Rule>
 """
 
-    if "messages" not in st.session_state or len(st.session_state.messages) == 0:
-        st.session_state.messages = [
-            {
-                "role": "model",
-                "content": "[संस्कृतम्]: हरिः ॐ! भवतः/भवत्याः नाम किम्?\n[IAST]: Harih Om! Bhavatah/Bhavatyah nama kim?\n[English]: Hello! What is your name?",
-            }
-        ]
-
+    # Display dialogue history
     for msg in st.session_state.messages:
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
-            if role == "assistant":
-                lines = [line.replace("[संस्कृतम्]:", "").strip() for line in msg["content"].split("\n") if "[संस्कृतम्]:" in line]
-                if lines:
-                    play_sanskrit_audio(lines[0])
+            if role == "assistant" and "[संस्कृतम्]:" in msg["content"]:
+                line = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                play_sanskrit_audio(line)
 
-    # 🎙️ In-App Microphone Recording Widget
-    st.write("---")
-    st.write("🎙️ **Oral / Voice Question (वदतु):**")
-    audio_data = st.audio_input("Record your voice / स्वध्वनिं मुद्रयतु:")
-
-    # Handle Audio Voice Input
-    if audio_data is not None:
+    # Voice Input inside Roleplay
+    st.write("🎙️ **Speak your reply (वदतु):**")
+    role_audio = st.audio_input("Record voice for roleplay:")
+    
+    if role_audio is not None:
         if not api_key:
             st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
             st.stop()
-
+        
         client = genai.Client(api_key=api_key)
-        audio_bytes = audio_data.getvalue()
-
-        st.session_state.messages.append({"role": "user", "content": "🎙️ [Oral Voice Input Submitted]"})
+        audio_bytes = role_audio.getvalue()
+        
+        st.session_state.messages.append({"role": "user", "content": "🎙️ *[Spoken Audio Response Submitted]*"})
         with st.chat_message("user"):
-            st.audio(audio_data, format="audio/wav")
-            st.caption("🎙️ Oral Question Submitted")
-
+            st.audio(role_audio, format="audio/wav")
+        
         with st.chat_message("assistant"):
-            with st.spinner("आचार्यः शृणोति एवं चिन्तयति... (Listening & Thinking)"):
-                try:
-                    response = client.models.generate_content(
-                        model="gemini-3.6-flash",
-                        contents=[
-                            {
-                                "role": "user",
-                                "parts": [
-                                    {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                    {"text": f"{SYSTEM_PROMPT}\nListen to this student's spoken audio. Transcribe what they said, provide the Acharya response in simple Sanskrit, and add guidance if needed."}
-                                ]
-                            }
-                        ],
-                    )
-                    reply = response.text
-                    st.markdown(reply)
-                    lines = [line.replace("[संस्कृतम्]:", "").strip() for line in reply.split("\n") if "[संस्कृतम्]:" in line]
-                    if lines:
-                        play_sanskrit_audio(lines[0])
-                    st.session_state.messages.append({"role": "model", "content": reply})
-                except Exception as e:
-                    st.error(f"Error processing audio: {str(e)}")
+            with st.spinner("आचार्यः शृणोति..."):
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
+                            {"text": f"{SYSTEM_ROLEPLAY}\nRespond to the student's spoken audio within the scenario."}
+                        ]
+                    }],
+                )
+                st.markdown(resp.text)
+                if "[संस्कृतम्]:" in resp.text:
+                    line = resp.text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                    play_sanskrit_audio(line)
+                st.session_state.messages.append({"role": "model", "content": resp.text})
 
-    # Handle Text Input
-    if user_input := st.chat_input("Type in Sanskrit or English (e.g. mama nama...)..."):
+    # Text Input inside Roleplay
+    if text_msg := st.chat_input("Or type here (e.g. mama nama, katham asti...):"):
         if not api_key:
             st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
             st.stop()
-
+            
         client = genai.Client(api_key=api_key)
-        is_devanagari = any("\u0900" <= char <= "\u097f" for char in user_input)
-        if not is_devanagari:
+        is_dev = any("\u0900" <= char <= "\u097f" for char in text_msg)
+        if not is_dev:
             try:
-                converted_dev = transliterate(user_input, sanscript.ITRANS, sanscript.DEVANAGARI)
-                display_text = f"{user_input} ({converted_dev})"
+                converted = transliterate(text_msg, sanscript.ITRANS, sanscript.DEVANAGARI)
+                user_display = f"{text_msg} ({converted})"
             except Exception:
-                display_text = user_input
+                user_display = text_msg
         else:
-            display_text = user_input
+            user_display = text_msg
 
-        st.session_state.messages.append({"role": "user", "content": display_text})
+        st.session_state.messages.append({"role": "user", "content": user_display})
         with st.chat_message("user"):
-            st.markdown(display_text)
+            st.markdown(user_display)
 
         contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.messages]
 
         with st.chat_message("assistant"):
             with st.spinner("आचार्यः चिन्तयति..."):
-                reply = None
-                for _ in range(3):
-                    try:
-                        resp = client.models.generate_content(
-                            model="gemini-3.6-flash",
-                            contents=contents,
-                            config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
-                        )
-                        reply = resp.text
-                        break
-                    except Exception:
-                        time.sleep(1.5)
-
-                if reply:
-                    st.markdown(reply)
-                    lines = [line.replace("[संस्कृतम्]:", "").strip() for line in reply.split("\n") if "[संस्कृतम्]:" in line]
-                    if lines:
-                        play_sanskrit_audio(lines[0])
-                    st.session_state.messages.append({"role": "model", "content": reply})
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=contents,
+                    config={"system_instruction": SYSTEM_ROLEPLAY, "temperature": 0.2},
+                )
+                st.markdown(resp.text)
+                if "[संस्कृतम्]:" in resp.text:
+                    line = resp.text.split("[संस्कृतम्]:")[1].split("\n")[0].strip()
+                    play_sanskrit_audio(line)
+                st.session_state.messages.append({"role": "model", "content": resp.text})
 
 
 # =========================================================
-# MODULE 1: UNIVERSAL TRANSLATION ENGINE
+# TAB 2: PRONUNCIATION & SHADOWING (ŚIKṢĀ COACH)
 # =========================================================
-elif "Universal Translation" in app_module:
-    if trans_direction == "Any Language ➔ Sanskrit":
-        SYSTEM_PROMPT = f"""You are "Acharya Anuvadaka" (अनुवादकः). Translate input into Sanskrit.
-Target Level: {level}.
+with tab_shiksha:
+    st.subheader("🎙️ पाणिनीय-शिक्षा एवं उच्चारण-परीक्षकः (Phonetic Coach)")
+    st.caption("Practice Sanskrit pronunciation with real-time articulation feedback (0–100% score).")
+    
+    drill_sentences = [
+        "सत्यं वद, धर्मं चर। (Speak truth, walk in righteousness)",
+        "विद्या ददाति विनयं विनयाद्याति पात्रताम्। (Knowledge gives humility)",
+        "वृक्षात् फलानि भूमौ पतन्ति। (Fruits fall from tree to ground - check Mahāprāṇa 'ph')",
+        "अहं प्रतिदिनं प्रातः पञ्चवादने उत्तिष्ठामि। (I wake up at 5 AM daily - check retroflex 'ṣṭh')"
+    ]
+    
+    target_sentence = st.selectbox("Select Target Sentence to Shadow / अनुवाचनम्:", drill_sentences)
+    
+    st.write("🔊 **Listen to Master Pronunciation:**")
+    play_sanskrit_audio(target_sentence.split('(')[0].strip())
+    
+    st.write("🎙️ **Now Record Your Voice Repeating It:**")
+    shadow_audio = st.audio_input("Repeat the sentence clearly:")
+    
+    if shadow_audio is not None:
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+            
+        client = genai.Client(api_key=api_key)
+        with st.spinner("Evaluating pronunciation against Pāṇinīya Śikṣā rules..."):
+            PROMPT_SHIKSHA = f"""You are an expert Vedic/Pāṇinian phonetician (पाणिनीय-शिक्षाविद्).
+Target Sentence to Pronounce: "{target_sentence}"
 
-MANDATORY OUTPUT FORMAT:
-### 🪶 पूर्णवाक्यम् (Complete Sanskrit Sentence):
+Analyze the student's audio recording and evaluate:
+1. Pronunciation Accuracy Score: Out of 100% (based on vowel length hrasva/dīrgha, visarga aspiration, and consonant articulation points).
+2. Articulation Points Analysis (उच्चारण-स्थानम्):
+   - Dental vs Retroflex (दन्त्य vs मूर्धन्य - e.g., त् vs ट्)
+   - Mahāprāṇa aspiration (महाप्राणः - e.g., ख्, घ्, थ्, फ्)
+   - Anusvāra & Visarga precision
+3. Specific Coaching Tip: Practical advice on where to place the tongue or release air.
+
+Format cleanly with markdown:
+### 🎯 उच्चारण-मूल्याङ्कनम् (Pronunciation Score): [XX / 100]
+**शुद्धता-स्तरः (Clarity):** [Excellent / Good / Needs Practice]
+
+---
+### 🔍 वर्णोच्चारण-विश्लेषणम् (Phonetic Breakdown):
+- **उच्चारण-स्थानानि**: <Feedback on articulation points>
+- **प्राण-प्रयत्नः (Aspiration)**: <Feedback on Alpaprāṇa vs Mahāprāṇa>
+- **स्वर-दीर्घता (Vowel Timing)**: <Feedback on short vs long vowels>
+
+---
+### 💡 सुधार-सङ्केताः (How to Improve):
+<Concrete tongue placement and breath control tip>
+"""
+            try:
+                resp = client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=[{
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "audio/wav", "data": shadow_audio.getvalue()}},
+                            {"text": PROMPT_SHIKSHA}
+                        ]
+                    }]
+                )
+                st.markdown(resp.text)
+            except Exception as e:
+                st.error(f"Error evaluating audio: {str(e)}")
+
+
+# =========================================================
+# TAB 3: UNIVERSAL TRANSLATOR
+# =========================================================
+with tab_translate:
+    st.subheader("🌐 सर्वभाषा-संस्कृत-अनुवादकः (Universal Translator)")
+    
+    trans_dir = st.radio("Direction", ["Any Language ➔ Sanskrit", "Sanskrit ➔ Any Language"], horizontal=True)
+    
+    if trans_dir == "Sanskrit ➔ Any Language":
+        t_lang = st.selectbox("Target Language", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"])
+    
+    in_text = st.text_area("Enter text to translate:", height=80)
+    
+    if st.button("Translate / अनुवादं कुरु"):
+        if not api_key:
+            st.warning("⚠️ Enter Gemini API key.")
+            st.stop()
+        if not in_text.strip():
+            st.warning("Enter text first.")
+            st.stop()
+            
+        client = genai.Client(api_key=api_key)
+        if trans_dir == "Any Language ➔ Sanskrit":
+            PROMPT_T = f"""Translate into Sanskrit for level {level}.
+MANDATORY:
+### 🪶 पूर्णवाक्यम्:
 **संस्कृतम् (Devanagari):** <FULL TRANSLATED SENTENCE>
-**IAST Transliteration:** <Sentence in IAST>
-**English Meaning:** <Complete English translation>
+**IAST:** <Sentence in IAST>
+**English:** <English meaning>
 
 ---
-### 🔍 व्याकरणम् एवं पदच्छेदः (Word-by-Word Analysis):
-- **<Word>**: <Pratipadika/Dhatu> + <Vibhakti/Pratyaya> — <Meaning>
-- **विशेष-नियमः (Key Rule applied)**: <Brief grammar note>
+### 🔍 व्याकरणम्:
+- Padaccheda and Vibhakti breakdown
 """
-    else:
-        SYSTEM_PROMPT = f"""You are "Acharya Vyakhyata" (व्याख्याता). Translate Sanskrit into {target_lang}.
-Target Level: {level}.
-
-Output Format:
-### 🎯 अनुवादः (Translation in {target_lang}):
-**{target_lang}:** <Accurate translation>
-**English:** <Fluent English translation>
-
----
-### 📜 पदच्छेदः एवं प्रतिपदार्थः (Word-by-Word Breakdown):
-- **<Sanskrit Word>**: <Meaning in {target_lang}> (<Grammar tag>)
-"""
-
-    st.subheader(f"🌐 {trans_direction}")
-    
-    # Text translation input
-    user_query = st.text_area("Enter text to translate (or record oral voice below):", height=90)
-    
-    # Oral Voice for Translation
-    st.write("🎙️ **Or speak to translate:**")
-    trans_audio = st.audio_input("Speak sentence to translate:")
-    
-    if st.button("Translate / अनुवादं कुरु") or (trans_audio is not None):
-        if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
-            st.stop()
-
-        client = genai.Client(api_key=api_key)
+        else:
+            PROMPT_T = f"""Translate this Sanskrit into {t_lang} and English with word-by-word meaning and sandhi splits."""
+            
         with st.spinner("Translating..."):
-            try:
-                if trans_audio is not None:
-                    payload = [
-                        {"inline_data": {"mime_type": "audio/wav", "data": trans_audio.getvalue()}},
-                        {"text": f"{SYSTEM_PROMPT}\nListen to this speech and execute the translation."}
-                    ]
-                else:
-                    if not user_query.strip():
-                        st.warning("Please enter text or record audio.")
-                        st.stop()
-                    payload = [{"text": user_query}]
-
-                resp = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=[{"role": "user", "parts": payload}],
-                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.2},
-                )
-                st.markdown(resp.text)
-                
-                # Audio playback for translated Sanskrit sentence
-                if "संस्कृतम् (Devanagari):" in resp.text:
-                    s_text = resp.text.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
-                    st.write("🔊 **उच्चारणम् (Pronunciation Audio):**")
-                    play_sanskrit_audio(s_text)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            resp = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=[{"role": "user", "parts": [{"text": f"{PROMPT_T}\nInput: {in_text}"}]}],
+            )
+            st.markdown(resp.text)
+            if "संस्कृतम् (Devanagari):" in resp.text:
+                line = resp.text.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
+                st.write("🔊 **उच्चारणम्:**")
+                play_sanskrit_audio(line)
 
 
 # =========================================================
-# MODULE 2: VYAKARANA ENGINE (Grammar, Sandhi, Shabda/Dhatu)
+# TAB 4: VYĀKARAṆA ENGINE
 # =========================================================
-elif "Vyakarana Engine" in app_module:
-    st.subheader("🧩 व्याकरण-विश्लेषकः (Sanskrit Grammar Engine)")
+with tab_grammar:
+    st.subheader("🧩 पाणिनीय-व्याकरण-उपकरणम् (Grammar Engine)")
     
-    vyakarana_tool = st.selectbox(
-        "Select Tool / उपकरणम्",
-        [
-            "Sandhi Splitter & Joiner (सन्धि-विच्छेदः / सन्धि-कार्यम्)",
-            "Shabdarupa Tables (शब्दरूपाणि - 8 Vibhaktis)",
-            "Dhaturupa Conjugator (धातुरूपाणि - 10 Lakaras)",
-            "Samasa & Vigraha Vakya (समास-विग्रहः)"
-        ]
-    )
+    tool = st.selectbox("Tool", [
+        "Sandhi Splitter & Rules (सन्धि-विच्छेदः)",
+        "Shabdarupa Tables (शब्दरूपाणि - 8 Vibhaktis)",
+        "Dhaturoopa Conjugator (धातुरूपाणि - 10 Lakaras)",
+        "Samasa & Vigraha (समास-विग्रहः)"
+    ])
+    g_input = st.text_input("Enter Word / Root (e.g. राम, गम्, देवेन्द्रः):")
     
-    vyak_input = st.text_input("Enter Word / Root / Sentence (e.g. देवेशः / राम / गम् / पीताम्बरः):")
-    
-    if st.button("Analyze / विश्लेषणं कुरु"):
+    if st.button("Generate Grammar Analysis"):
         if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.warning("⚠️ Enter Gemini API key.")
             st.stop()
-        if not vyak_input.strip():
-            st.warning("Please enter a term to analyze.")
-            st.stop()
-
-        SYSTEM_PROMPT_VYAK = f"""You are "Panini AI", an expert computational Sanskrit grammarian.
-Tool Selected: {vyakarana_tool}.
-Proficiency Level: {level}.
-
-Provide an exact, structured breakdown adhering to Paninian Ashtadhyayi rules:
-1. Provide Sanskrit Sutra references (e.g. आद्गुणः ६.१.८७, इको यणचि ६.१.७७, etc.).
-2. Use clear Markdown tables for 8 Vibhaktis (Prathama to Sambodhana in Ekavacana, Dvivacana, Bahuvacana) or Lakaras (Prathama, Madhyama, Uttama Purusha).
-3. Provide IAST transliteration and English meanings for each form.
-"""
         client = genai.Client(api_key=api_key)
-        with st.spinner("व्याकरण-विश्लेषणं प्रचलति..."):
-            try:
-                resp = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=[{"role": "user", "parts": [{"text": f"Tool: {vyakarana_tool}\nInput: {vyak_input}"}]}],
-                    config={"system_instruction": SYSTEM_PROMPT_VYAK, "temperature": 0.1},
-                )
-                st.markdown(resp.text)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+        with st.spinner("Analyzing..."):
+            resp = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=[{"role": "user", "parts": [{"text": f"Generate Ashtadhyayi Paninian analysis for tool: {tool}, input: {g_input}"}]}],
+            )
+            st.markdown(resp.text)
 
 
 # =========================================================
-# MODULE 3: PARIKSHA & DRILLS ENGINE (Quizzes & Tests)
+# TAB 5: VOCABULARY VAULT & PARĪKṢĀ
 # =========================================================
-elif "Pariksha & Drills" in app_module:
-    st.subheader("📝 संस्कृत-परीक्षा एवं अभ्यासः (Assessment Engine)")
+with tab_vault:
+    st.subheader("🏆 शब्दकोशः एवं परीक्षा (Vault & Quizzes)")
     
-    quiz_topic = st.selectbox(
-        "Quiz Topic / विषयः",
-        [
-            "Vibhakti & Karaka Agreement (विभक्ति-अभ्यासः)",
-            "Dhaturoopa & Lakara Tense Conjugation (धातुरूप-अभ्यासः)",
-            "Sandhi Identification & Splitting (सन्धि-परीक्षा)",
-            "Sentence Translation Challenges (अनुवाद-परीक्षा)"
-        ]
-    )
-    
-    if "current_quiz" not in st.session_state:
-        st.session_state.current_quiz = None
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("### 📚 Saved Vocabulary Vault")
+        for item in st.session_state.vocab_vault:
+            st.markdown(f"- **{item['word']}**: {item['meaning']} *({item['level']})*")
+            
+        with st.expander("➕ Add New Word to Vault"):
+            nw = st.text_input("Sanskrit Word (पदम्):")
+            nm = st.text_input("Meaning (अर्थः):")
+            if st.button("Save Word"):
+                if nw and nm:
+                    st.session_state.vocab_vault.append({"word": nw, "meaning": nm, "level": "Learner"})
+                    st.success("Word added to vault!")
+                    st.rerun()
 
-    if st.button("⚡ Generate New Quiz / नूतन-प्रश्नावली"):
-        if not api_key:
-            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
-            st.stop()
-
-        SYSTEM_PROMPT_QUIZ = f"""You are "Acharya Parikshaka".
-Generate an interactive Sanskrit quiz for Level: {level}.
-Topic: {quiz_topic}.
-
-Create 3 distinct questions.
-For each question:
-1. State the Question clearly in Devanagari, IAST, and English.
-2. Provide 4 options (A, B, C, D).
-3. Clearly mark the Correct Answer and provide a detailed grammatical explanation (Prakriti + Pratyaya / Sutra).
-
-Format:
-### प्रश्नः १: <Question>
-- A) <Option 1>
-- B) <Option 2>
-- C) <Option 3>
-- D) <Option 4>
-
-**उत्तरम् (Correct Answer):** <Option Letter & Answer>
-**स्पष्टीकरणम् (Explanation):** <Grammar explanation>
----
-"""
-        client = genai.Client(api_key=api_key)
-        with st.spinner("प्रश्नावली निर्मीयते..."):
-            try:
+    with col2:
+        st.write("### 📝 Quick Quiz (परीक्षा)")
+        quiz_type = st.selectbox("Topic", ["Vibhakti Drill", "Verb Conjugation", "Spoken Sanskrit Expressions"])
+        if st.button("⚡ Generate Quiz"):
+            if not api_key:
+                st.warning("⚠️ Enter Gemini API key.")
+                st.stop()
+            client = genai.Client(api_key=api_key)
+            with st.spinner("Generating quiz..."):
                 resp = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=[{"role": "user", "parts": [{"text": f"Generate a 3-question test on {quiz_topic}"}]}],
-                    config={"system_instruction": SYSTEM_PROMPT_QUIZ, "temperature": 0.3},
+                    contents=[{"role": "user", "parts": [{"text": f"Generate 3-question MCQ quiz on {quiz_type} with correct answer and Paninian explanation."}]}],
                 )
                 st.session_state.current_quiz = resp.text
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-
-    if st.session_state.current_quiz:
-        st.markdown(st.session_state.current_quiz)
+                
+        if st.session_state.current_quiz:
+            st.markdown(st.session_state.current_quiz)
