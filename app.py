@@ -56,7 +56,7 @@ def generate_gemini_content(client, contents, config=None, is_json=False, max_re
                 continue
             raise e
 
-# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode + SRS Engine) ---
+# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode + SRS + Social Leagues) ---
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -106,7 +106,24 @@ def init_db():
         )
     ''')
     
+    # Pre-populate leaderboard peer benchmarks if table is fresh
     today_str = str(datetime.date.today())
+    c.execute('SELECT COUNT(*) FROM user_profile')
+    if c.fetchone()[0] == 0:
+        seed_users = [
+            ("user_acharya_vidya", "विद्वान् राघवः (Scholar Raghava)", "Advanced (उत्तमा)", 18, 920, today_str),
+            ("user_gargi_aspirant", "गार्गी प्रियंवदा (Gargi P.)", "Advanced (उत्तमा)", 14, 760, today_str),
+            ("user_soma_dev", "सोमदेव शास्त्री (Somadeva)", "Intermediate (मध्यमा)", 9, 440, today_str),
+            ("user_ananya_learner", "अनन्या शर्मा (Ananya S.)", "Intermediate (मध्यमा)", 6, 280, today_str),
+            ("user_balaka_aarav", "बालकः आरवः (Aarav)", "Beginner (प्रथमा)", 3, 140, today_str),
+            ("default_user", "भवतः विवरणम् (You)", "Beginner (प्रथमा)", 1, 100, today_str)
+        ]
+        c.executemany('''
+            INSERT OR IGNORE INTO user_profile (id, username, level, streak, xp, last_active)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', seed_users)
+
+    # Pre-populate starter vocabulary if empty
     c.execute('SELECT COUNT(*) FROM vocab_vault WHERE user_id = "default_user"')
     if c.fetchone()[0] == 0:
         starter_vocab = [
@@ -133,15 +150,28 @@ if "user_session_id" not in st.session_state:
 def get_user_stats(uid):
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute('SELECT streak, xp, level FROM user_profile WHERE id = ?', (uid,))
+    c.execute('SELECT streak, xp, level, username FROM user_profile WHERE id = ?', (uid,))
     res = c.fetchone()
     if not res:
-        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "Learner", "Beginner (प्रथमा)", 1, 100, ?)',
+        c.execute('INSERT OR IGNORE INTO user_profile VALUES (?, "भवतः विवरणम् (You)", "Beginner (प्रथमा)", 1, 100, ?)',
                   (uid, str(datetime.date.today())))
         conn.commit()
-        res = (1, 100, "Beginner (प्रथमा)")
+        res = (1, 100, "Beginner (प्रथमा)", "भवतः विवरणम् (You)")
     conn.close()
     return res
+
+def get_global_leaderboard():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT username, level, streak, xp, id 
+        FROM user_profile 
+        ORDER BY xp DESC 
+        LIMIT 25
+    ''')
+    rows = c.fetchall()
+    conn.close()
+    return rows
 
 def update_user_level(uid, new_level):
     conn = get_db_connection()
@@ -332,6 +362,34 @@ st.markdown("""
         margin-bottom: 16px;
     }
     
+    /* LEADERBOARD CARD THEME */
+    .league-header-card {
+        background: linear-gradient(135deg, #3E2723 0%, #1A0C00 100%);
+        border: 2px solid #FF8F00;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .leaderboard-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 143, 0, 0.15);
+        border-radius: 12px;
+        padding: 12px 18px;
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .leaderboard-row.is-current-user {
+        background: rgba(230, 81, 0, 0.18);
+        border: 2px solid #FF8F00;
+        box-shadow: 0 0 16px rgba(255, 143, 0, 0.3);
+    }
+    
     .flashcard-box {
         background: linear-gradient(145deg, #2D1B08 0%, #170E04 100%);
         border: 2px solid #FF8F00;
@@ -516,6 +574,7 @@ def render_live_waveform_pitch_visualizer():
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     var source = audioCtx.createMediaStreamSource(micStream);
+                    
                     analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 2048;
                     source.connect(analyser);
@@ -629,12 +688,12 @@ def split_into_sentences(text: str, max_limit=50):
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Enterprise (सम्भाषणम्)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Diagnostic Placement Testing • Vocal Pitch Visualizer</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Multi-Tenant Spoken Sanskrit Engine • Weekly Social Leagues • Real-Time Vocal Spectrum</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR ---
-u_streak, u_xp, u_level = get_user_stats(st.session_state.user_session_id)
+u_streak, u_xp, u_level, u_name = get_user_stats(st.session_state.user_session_id)
 
 with st.sidebar:
     st.markdown("### 🎙️ **Teacher & Voice Profile**")
@@ -670,7 +729,7 @@ with st.sidebar:
     with col_p2:
         st.metric("⭐ Points", f"{u_xp} XP")
     
-    st.caption(f"🎯 Placed Skill Tier: **{u_level}**")
+    st.caption(f"🎯 Placed Tier: **{u_level}**")
     
     if st.button("🔄 Reset Conversation", use_container_width=True):
         st.session_state.chat_history = []
@@ -703,14 +762,15 @@ Mandatory Response Format:
 - 💡 Correction & rule
 """
 
-# --- 6 PRODUCTION TABS ---
-tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_diagnostic, tab_chandas, tab_trans = st.tabs([
+# --- 7 COMPREHENSIVE PRODUCTION TABS ---
+tab_roleplay, tab_srs_flashcards, tab_shiksha, tab_diagnostic, tab_leagues, tab_chandas, tab_trans = st.tabs([
     "💬 1. Oral Roleplay",
     "🧠 2. SRS Flashcard Quiz",
     "🎙️ 3. Śikṣā Phonetics & Pitch",
-    "📝 4. Diagnostic Placement Test",
-    "🕉️ 5. Svara & Chandaḥ",
-    "🌐 6. Batch Translator (50 Sentences)"
+    "📝 4. Diagnostic Test",
+    "🏆 5. Social Leagues & Leaderboard",
+    "🕉️ 6. Svara & Chandaḥ",
+    "🌐 7. Batch Translator (50 Sentences)"
 ])
 
 # =========================================================
@@ -1034,7 +1094,7 @@ with tab_shiksha:
                 st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 4: AUTOMATED DIAGNOSTIC PLACEMENT TEST (POINT 4)
+# TAB 4: AUTOMATED DIAGNOSTIC PLACEMENT TEST
 # =========================================================
 with tab_diagnostic:
     st.markdown("#### 📝 प्रवेश-परीक्षा एवं स्तर-निर्धारणम् (Diagnostic Placement Test)")
@@ -1140,7 +1200,101 @@ with tab_diagnostic:
             st.info("💡 Your active learning tier in the sidebar and oral dialogue sessions has been automatically updated!")
 
 # =========================================================
-# TAB 5: SVARA & CHANDAḤ ENGINE
+# TAB 5: SOCIAL LEAGUES & GLOBAL LEADERBOARD (POINT 5)
+# =========================================================
+with tab_leagues:
+    st.markdown("#### 🏆 साप्ताहिक-यशःपट्टिका एवं मण्डल-श्रेणी (Weekly Social Leagues)")
+    st.caption("Compete with Sanskrit learners worldwide. Earn XP through oral dialogues, flashcard mastery, and translations to gain promotion!")
+    
+    # User's current league tier computation
+    if u_xp >= 500:
+        league_name = "🥇 ब्रह्मवर्चस् मण्डलम् (Brahmavarcasa Diamond League)"
+        league_color = "#FFD54F"
+        next_league_target = "Highest League Reached!"
+        progress_val = 1.0
+    elif u_xp >= 200:
+        league_name = "🥈 विद्याधर मण्डलम् (Vidyādhara Silver League)"
+        league_color = "#E0E0E0"
+        next_league_target = f"{500 - u_xp} XP to Brahmavarcasa League"
+        progress_val = (u_xp - 200) / 300.0
+    else:
+        league_name = "🥉 जिज्ञासु मण्डलम् (Śiṣya Bronze League)"
+        league_color = "#CD7F32"
+        next_league_target = f"{200 - u_xp} XP to Vidyādhara League"
+        progress_val = u_xp / 200.0
+
+    st.markdown(f"""
+    <div class="league-header-card">
+        <div style="font-size:0.85rem; text-transform:uppercase; letter-spacing:1.5px; color:#FF8F00; font-weight:800; margin-bottom:4px;">
+            YOUR CURRENT DIVISION
+        </div>
+        <h2 style="color:{league_color}; margin:0 0 8px 0; font-weight:800;">{league_name}</h2>
+        <div style="font-size:0.95rem; color:#DDD;">
+            <b>Active XP:</b> {u_xp} XP | <b>Streak:</b> 🔥 {u_streak} Days | <b>Status:</b> {next_league_target}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.progress(min(1.0, max(0.0, progress_val)), text=f"Promotion Progress: {next_league_target}")
+    st.write("")
+
+    # Render Leaderboard Standings
+    leaders = get_global_leaderboard()
+    
+    col_l1, col_l2 = st.columns([2, 1])
+    with col_l1:
+        st.markdown("##### 🌍 **Global Weekly Rankings:**")
+        
+        for rank, (uname, ulevel, ustrk, uxp, uid) in enumerate(leaders, start=1):
+            is_me = (uid == st.session_state.user_session_id)
+            
+            # Rank Medal / Emoji
+            if rank == 1:
+                medal = "🥇"
+            elif rank == 2:
+                medal = "🥈"
+            elif rank == 3:
+                medal = "🥉"
+            else:
+                medal = f"#{rank}"
+                
+            st.markdown(f"""
+            <div class="leaderboard-row {'is-current-user' if is_me else ''}">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <div style="font-size:1.2rem; font-weight:800; min-width:32px; text-align:center;">{medal}</div>
+                    <div>
+                        <div style="font-weight:700; color:{'#FFD54F' if is_me else '#FFF'}; font-size:0.95rem;">
+                            {uname} {' (You)' if is_me else ''}
+                        </div>
+                        <div style="font-size:0.75rem; color:#AAA;">
+                            {ulevel} • 🔥 {ustrk} Day Streak
+                        </div>
+                    </div>
+                </div>
+                <div style="font-weight:800; font-size:1.05rem; color:#FF8F00;">
+                    {uxp} XP
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_l2:
+        st.markdown("##### ⚡ **How to Earn XP & Climb:**")
+        st.markdown("""
+        * 💬 **Oral Dialogue Turn:** `+10 XP`
+        * 🎴 **Good / Easy Flashcard:** `+10 / +20 XP`
+        * 📄 **PDF Bulk Word Ingest:** `+5 XP per word`
+        * 📝 **Placement Test Clear:** `Up to +100 XP`
+        * 🕉️ **Chandaḥ Verse Scan:** `+20 XP`
+        """)
+        
+        st.markdown("##### 🎖️ **Weekly League Rewards:**")
+        st.markdown("""
+        * **Top 3 Finishers:** Promoted to Diamond League with custom Scholar Avatar Frame.
+        * **Top 10 Finishers:** Double XP Boost for Spoken Sanskrit drills.
+        """)
+
+# =========================================================
+# TAB 6: SVARA & CHANDAḤ ENGINE
 # =========================================================
 with tab_chandas:
     st.markdown("#### 🕉️ वैदिक-स्वर एवं छन्दो-विश्लेषकः (Pingala Chandaḥ Engine)")
@@ -1164,7 +1318,7 @@ with tab_chandas:
                 st.error(f"Error: {str(e)}")
 
 # =========================================================
-# TAB 6: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
+# TAB 7: SENTENCE-BY-SENTENCE BATCH TRANSLATOR (UP TO 50 SENTENCES)
 # =========================================================
 with tab_trans:
     st.markdown("#### 🌐 Sentence-by-Sentence Batch Translator (Up to 50 Sentences at Once)")
