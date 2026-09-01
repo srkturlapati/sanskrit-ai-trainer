@@ -1,6 +1,8 @@
 import sys
 import os
+import time
 import io
+import hashlib
 
 # Ensure UTF-8 encoding across environments
 if sys.stdout.encoding != 'utf-8':
@@ -26,7 +28,6 @@ st.set_page_config(
 # --- MODERN TALKPAL UI STYLING ---
 st.markdown("""
 <style>
-    /* Background and typography */
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', sans-serif;
@@ -99,13 +100,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Helper: Sanskrit Audio Player (TTS)
-def play_sanskrit_audio(text_to_speak: str):
+# Helper: Sanskrit Audio Player (TTS) with TalkPal Slow/Normal Speed
+def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     try:
         clean = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
         if not clean:
             return
-        tts = gTTS(text=clean, lang='hi', slow=False)
+        tts = gTTS(text=clean, lang='hi', slow=slow_mode)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
@@ -122,8 +123,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "active_mode_key" not in st.session_state:
     st.session_state.active_mode_key = "💬 Chat"
+if "last_processed_audio_hash" not in st.session_state:
+    st.session_state.last_processed_audio_hash = ""
 
-# --- SIDEBAR: Profile & Settings ---
+# --- SIDEBAR: Profile, Settings & Rate Limiter ---
 with st.sidebar:
     st.title("🗣️ TalkPal Sanskrit")
     st.caption("AI Spoken Sanskrit Companion • सम्भाषणम्")
@@ -143,6 +146,11 @@ with st.sidebar:
     )
     
     st.write("---")
+    st.subheader("⚙️ TalkPal Audio Controls")
+    audio_speed = st.radio("Pronunciation Speed", ["Normal (सामान्यम्)", "Slow (मन्दम्)"], index=0)
+    is_slow = audio_speed.startswith("Slow")
+    
+    st.write("---")
     st.markdown("### 🏆 Your Fluency Stats")
     c1, c2 = st.columns(2)
     c1.metric("🔥 Streak", f"{st.session_state.streak} Days")
@@ -153,6 +161,7 @@ with st.sidebar:
     st.write("---")
     if st.button("🔄 Clear Active Session"):
         st.session_state.chat_history = []
+        st.session_state.last_processed_audio_hash = ""
         st.rerun()
 
 # --- TOP NAVIGATION: 5 TALKPAL MODES ---
@@ -163,16 +172,35 @@ selected_mode = st.radio(
     label_visibility="collapsed"
 )
 
-# Reset conversation on mode change
 if selected_mode != st.session_state.active_mode_key:
     st.session_state.chat_history = []
+    st.session_state.last_processed_audio_hash = ""
     st.session_state.active_mode_key = selected_mode
     st.rerun()
 
-# Mode-specific instructions
+# Safe API caller with automatic exponential backoff for 429 errors
+def call_gemini_safe(client, model, contents, system_instruction):
+    for attempt in range(4):
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=contents,
+                config={"system_instruction": system_instruction, "temperature": 0.2}
+            )
+            return resp.text, None
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                sleep_time = 4 * (attempt + 1)
+                time.sleep(sleep_time)
+                continue
+            return None, err_str
+    return None, "Rate limit reached. Please wait 15 seconds before speaking again."
+
+# Mode system instructions
 if selected_mode == "💬 Chat":
     mode_title = "💬 Free Chat with TalkPal Tutor"
-    mode_caption = "Converse freely in spoken Sanskrit. Speak via microphone or type below."
+    mode_caption = "Converse freely in spoken Sanskrit. TalkPal analyzes your speech, translates, and offers real-time improvements."
     system_instruction = f"""You are the TalkPal AI Sanskrit Tutor. Student Level: {level}.
 Always format your response cleanly as:
 [संस्कृतम्]: <Conversational Sanskrit reply>
@@ -181,8 +209,9 @@ Always format your response cleanly as:
 [💡 TalkPal Feedback]:
 - 🔍 Grammatical Correction: <Point out any Vibhakti/Lakara/Sandhi error, or state 'निर्दोषम् (Perfect!)'>
 - ✨ Better Way to Say: <An idiomatic, native-like alternative phrase>
+- 📖 Key Vocabulary: <1-2 words from the reply with root/meaning>
 """
-    initial_greeting = "[संस्कृतम्]: हरिः ॐ! अद्य भवान्/भवती कीदृशं विषयम् अधिकृत्य सम्भाषणं कर्तुम् इच्छति?\n[IAST]: Hariḥ Om! Adya bhavān/bhavatī kīdṛśaṁ viṣayam adhikṛtya sambhāṣaṇaṁ kartum icchati?\n[English]: Hello! What topic would you like to talk about today?\n[💡 TalkPal Feedback]:\n- 🔍 Grammatical Correction: निर्दोषम् (Ready to converse!)\n- ✨ Better Way to Say: Welcome to TalkPal Chat!"
+    initial_greeting = "[संस्कृतम्]: हरिः ॐ! अद्य भवान्/भवती कीदृशं विषयम् अधिकृत्य सम्भाषणं कर्तुम् इच्छति?\n[IAST]: Hariḥ Om! Adya bhavān/bhavatī kīdṛśaṁ viṣayam adhikṛtya sambhāṣaṇaṁ kartum icchati?\n[English]: Hello! What topic would you like to talk about today?\n[💡 TalkPal Feedback]:\n- 🔍 Grammatical Correction: निर्दोषम् (Ready to converse!)\n- ✨ Better Way to Say: Welcome to TalkPal Chat!\n- 📖 Key Vocabulary: विषयम् (viṣayam - topic)"
 
 elif selected_mode == "🎭 Roleplays":
     mode_title = "🎭 Situational Roleplay"
@@ -214,11 +243,9 @@ else:
     system_instruction = f"You are TalkPal Sanskrit Tutor for level {level}. Converse in simple Sanskrit."
     initial_greeting = "[संस्कृतम्]: हरिः ॐ! वदतु, कथम् अस्ति?\n[IAST]: Hariḥ Om! Vadatu, katham asti?\n[English]: Hello! Tell me, how are you?"
 
-# Set initial greeting
 if len(st.session_state.chat_history) == 0:
     st.session_state.chat_history = [{"role": "model", "content": initial_greeting}]
 
-# Header banner
 st.subheader(mode_title)
 st.caption(mode_caption)
 
@@ -229,59 +256,62 @@ for msg in st.session_state.chat_history:
         st.markdown(msg["content"])
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Audio Player directly attached to message
         if "[संस्कृतम्]:" in msg["content"]:
             line = msg["content"].split("[संस्कृतम्]:")[1].split("\n")[0].strip()
-            play_sanskrit_audio(line)
+            play_sanskrit_audio(line, slow_mode=is_slow)
     else:
         st.markdown('<div class="talkpal-bubble-user"><span class="talkpal-pill" style="background:#DCFCE7; color:#15803D;">👤 You</span>', unsafe_allow_html=True)
         st.markdown(msg["content"])
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- PERMANENT VOICE DOCK (ALWAYS VISIBLE FOR SPOKEN REPLIES) ---
+# --- PERMANENT VOICE DOCK (WITH DEBOUNCE CACHE TO STOP 429) ---
 st.markdown('<div class="voice-dock">', unsafe_allow_html=True)
 st.markdown("🎙️ **Tap the Mic to Speak your Reply / वदतु (Voice Reply):**")
-audio_reply = st.audio_input("Record your spoken reply:", key=f"rec_{len(st.session_state.chat_history)}")
+audio_reply = st.audio_input("Record your spoken reply:", key=f"rec_dock_{len(st.session_state.chat_history)}")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- HANDLE AUDIO RECORDING ---
+# Process Audio Only Once Per Recording (Prevents 429 loops)
 if audio_reply is not None:
-    if not api_key:
-        st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
-        st.stop()
-
-    client = genai.Client(api_key=api_key)
     audio_bytes = audio_reply.getvalue()
+    audio_hash = hashlib.md5(audio_bytes).hexdigest()
 
-    st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Voice Response]*"})
-    st.session_state.xp += 15
+    if audio_hash != st.session_state.last_processed_audio_hash:
+        st.session_state.last_processed_audio_hash = audio_hash
 
-    with st.spinner("TalkPal is listening and evaluating..."):
-        try:
-            resp = client.models.generate_content(
+        if not api_key:
+            st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
+            st.stop()
+
+        client = genai.Client(api_key=api_key)
+        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Voice Response]*"})
+        st.session_state.xp += 15
+
+        with st.spinner("TalkPal is listening and evaluating..."):
+            reply, err = call_gemini_safe(
+                client=client,
                 model="gemini-3.6-flash",
                 contents=[{
                     "role": "user",
                     "parts": [
                         {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                        {"text": f"{system_instruction}\nListen to the student's spoken audio, transcribe it, reply in Sanskrit with translation, and provide grammatical feedback."}
+                        {"text": f"{system_instruction}\nListen to the student's spoken audio, transcribe what they said, reply in Sanskrit with translation, and provide grammatical feedback."}
                     ]
                 }],
+                system_instruction=system_instruction
             )
-            st.session_state.chat_history.append({"role": "model", "content": resp.text})
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+            if reply:
+                st.session_state.chat_history.append({"role": "model", "content": reply})
+                st.rerun()
+            else:
+                st.error(f"⚠️ {err}")
 
-# --- HANDLE TEXT INPUT (AS ALTERNATIVE) ---
+# --- TEXT INPUT (ALTERNATIVE) ---
 if text_input := st.chat_input("Or type here in Sanskrit or English (e.g. mama nama, aham pathami...)..."):
     if not api_key:
         st.warning("⚠️ Please enter your Gemini API key in the sidebar.")
         st.stop()
 
     client = genai.Client(api_key=api_key)
-    
-    # Transliteration check
     is_dev = any("\u0900" <= char <= "\u097f" for char in text_input)
     if not is_dev:
         try:
@@ -298,13 +328,14 @@ if text_input := st.chat_input("Or type here in Sanskrit or English (e.g. mama n
     contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.chat_history]
 
     with st.spinner("TalkPal is typing..."):
-        try:
-            resp = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=contents,
-                config={"system_instruction": system_instruction, "temperature": 0.2},
-            )
-            st.session_state.chat_history.append({"role": "model", "content": resp.text})
+        reply, err = call_gemini_safe(
+            client=client,
+            model="gemini-3.6-flash",
+            contents=contents,
+            system_instruction=system_instruction
+        )
+        if reply:
+            st.session_state.chat_history.append({"role": "model", "content": reply})
             st.rerun()
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+        else:
+            st.error(f"⚠️ {err}")
