@@ -162,11 +162,11 @@ def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> s
 
 def render_autotype_mic(target_input_hint=""):
     components.html(f"""
-    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, #2D1400 0%, #170A00 100%); padding:10px 16px; border-radius:12px; border:1.5px solid #FF8F00; margin: 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:linear-gradient(135deg, #E65100, #FF6D00); color:white; border:none; padding:7px 18px; border-radius:20px; font-weight:700; cursor:pointer; font-size:0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, #2D1400 0%, #170A00 100%); padding:10px 16px; border-radius:12px; border:1.5px solid #FF8F00; margin: 8px 0; box-shadow: 0 4px 14px rgba(255,143,0,0.3);">
+        <button id="autoTypeBtn" onclick="toggleAutoType()" style="background:linear-gradient(135deg, #E65100, #FF6D00); color:white; border:none; padding:7px 18px; border-radius:20px; font-weight:800; cursor:pointer; font-size:0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
             🎙️ Auto-Type Voice
         </button>
-        <span id="autoTypeStatus" style="font-size:0.82rem; color:#FFD54F; font-weight:600;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
+        <span id="autoTypeStatus" style="font-size:0.85rem; color:#FFD54F; font-weight:600;">Speak in Sanskrit, Hindi, Telugu, or English... {target_input_hint}</span>
     </div>
     <script>
         var recognition = null;
@@ -182,7 +182,7 @@ def render_autotype_mic(target_input_hint=""):
                 isRec = true;
                 document.getElementById('autoTypeBtn').style.background = '#2E7D32';
                 document.getElementById('autoTypeBtn').innerText = '🔴 Listening...';
-                document.getElementById('autoTypeStatus').innerText = 'Transcribing your voice live into the text box...';
+                document.getElementById('autoTypeStatus').innerText = 'Transcribing your voice live into the box...';
             }};
             recognition.onresult = function(e) {{
                 var spoken = e.results[0][0].transcript;
@@ -208,154 +208,170 @@ def render_autotype_mic(target_input_hint=""):
     </script>
     """, height=58)
 
-# --- MODERN GAMIFICATION THEME (MULTI-TAB COLOR MATRICES) ---
+# --- COMPLETE ROOT-LEVEL IMMERSIVE DARK GAMING CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     
-    /* Hero Header */
-    .hero-banner {
-        background: linear-gradient(135deg, #BF360C 0%, #E65100 40%, #210C00 100%);
-        border-radius: 18px;
-        padding: 20px 26px;
-        color: #FFFFFF;
-        box-shadow: 0 10px 30px rgba(230, 81, 0, 0.4);
-        margin-bottom: 20px;
-        border: 2px solid #FF8F00;
+    /* 1. OVERRIDE ENTIRE STREAMLIT APP BACKGROUND (NO WHITE SCREEN) */
+    .stApp, div[data-testid="stAppViewContainer"], div[data-testid="stHeader"], div[data-testid="stSidebar"], section[data-testid="stSidebar"] {
+        background-color: #0D0702 !important;
+        background: radial-gradient(circle at 50% 10%, #241103 0%, #0D0702 75%, #050200 100%) !important;
+        color: #FFFFFF !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+    
+    /* 2. STYLE ALL LABELS & TEXT TO HIGH CONTRAST */
+    p, span, label, div, h1, h2, h3, h4, h5, h6 {
+        color: #FFFFFF !important;
+    }
+    label p {
+        color: #FFD54F !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
     }
 
-    /* TAB 1: SAFFRON & FLAME THEME */
+    /* 3. INPUT FIELDS, TEXTAREAS & DROPDOWNS OVERRIDE */
+    input[type="text"], input[type="password"], textarea {
+        background-color: #1A0D03 !important;
+        border: 1.5px solid #FF8F00 !important;
+        color: #FFE082 !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+    }
+    div[data-baseweb="select"] > div {
+        background-color: #1A0D03 !important;
+        border: 1.5px solid #FF8F00 !important;
+        color: #FFFFFF !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="select"] * {
+        color: #FFE082 !important;
+        font-weight: 600 !important;
+    }
+    div[data-baseweb="popover"], div[data-baseweb="menu"] {
+        background-color: #1A0D03 !important;
+        border: 1px solid #FF8F00 !important;
+    }
+
+    /* 4. TABS NAVIGATION STYLING */
+    div[data-testid="stTabs"] button {
+        background-color: #1A0C02 !important;
+        color: #FFB300 !important;
+        border-radius: 12px 12px 0 0 !important;
+        border: 1px solid rgba(255, 143, 0, 0.3) !important;
+        font-weight: 800 !important;
+        padding: 8px 16px !important;
+        margin-right: 4px !important;
+        transition: all 0.3s ease !important;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        background: linear-gradient(135deg, #E65100, #BF360C) !important;
+        color: #FFFFFF !important;
+        border: 1.5px solid #FFD54F !important;
+        box-shadow: 0 0 16px rgba(255, 143, 0, 0.6) !important;
+    }
+
+    /* 5. HERO BANNER */
+    .hero-banner {
+        background: linear-gradient(135deg, #BF360C 0%, #E65100 45%, #210C00 100%) !important;
+        border-radius: 18px;
+        padding: 20px 26px;
+        color: #FFFFFF !important;
+        box-shadow: 0 10px 30px rgba(230, 81, 0, 0.45);
+        margin-bottom: 20px;
+        border: 2px solid #FFB300;
+    }
+
+    /* 6. TAB-SPECIFIC GLOWING THEME CONTAINERS */
     .theme-tab1 {
-        background: linear-gradient(145deg, #2A1202 0%, #150900 100%) !important;
+        background: linear-gradient(145deg, #2D1402 0%, #170A00 100%) !important;
         border: 2px solid #FF8F00 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(255, 111, 0, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(255, 111, 0, 0.3);
     }
-    .theme-tab1 h3, .theme-tab1 h4 { color: #FFB300 !important; font-weight: 800; }
-
-    /* TAB 2: EMERALD & JADE THEME */
     .theme-tab2 {
-        background: linear-gradient(145deg, #022415 0%, #00120A 100%) !important;
+        background: linear-gradient(145deg, #022B18 0%, #00140B 100%) !important;
         border: 2px solid #00E676 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(0, 230, 118, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(0, 230, 118, 0.3);
     }
-    .theme-tab2 h3, .theme-tab2 h4 { color: #69F0AE !important; font-weight: 800; }
-
-    /* TAB 3: AMETHYST & PURPLE THEME */
     .theme-tab3 {
-        background: linear-gradient(145deg, #240033 0%, #12001A 100%) !important;
+        background: linear-gradient(145deg, #2B003D 0%, #14001F 100%) !important;
         border: 2px solid #D500F9 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(213, 0, 249, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(213, 0, 249, 0.3);
     }
-    .theme-tab3 h3, .theme-tab3 h4 { color: #EA80FC !important; font-weight: 800; }
-
-    /* TAB 4: RUBY & CRIMSON THEME */
     .theme-tab4 {
-        background: linear-gradient(145deg, #33000E 0%, #170006 100%) !important;
+        background: linear-gradient(145deg, #380010 0%, #1A0007 100%) !important;
         border: 2px solid #FF1744 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(255, 23, 68, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(255, 23, 68, 0.3);
     }
-    .theme-tab4 h3, .theme-tab4 h4 { color: #FF80AB !important; font-weight: 800; }
-
-    /* TAB 5: SAPPHIRE & CELESTIAL BLUE THEME */
     .theme-tab5 {
-        background: linear-gradient(145deg, #001E3D 0%, #000F1F 100%) !important;
+        background: linear-gradient(145deg, #002244 0%, #001021 100%) !important;
         border: 2px solid #00B0FF !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(0, 176, 255, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(0, 176, 255, 0.3);
     }
-    .theme-tab5 h3, .theme-tab5 h4 { color: #80D8FF !important; font-weight: 800; }
-
-    /* TAB 6: SURYA GOLD & AMBER THEME */
     .theme-tab6 {
-        background: linear-gradient(145deg, #332600 0%, #1A1300 100%) !important;
+        background: linear-gradient(145deg, #382B00 0%, #1C1500 100%) !important;
         border: 2px solid #FFD600 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(255, 214, 0, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(255, 214, 0, 0.3);
     }
-    .theme-tab6 h3, .theme-tab6 h4 { color: #FFE57F !important; font-weight: 800; }
-
-    /* TAB 7: TEMPLE TEAL & SANDALWOOD THEME */
     .theme-tab7 {
-        background: linear-gradient(145deg, #002B33 0%, #00141A 100%) !important;
+        background: linear-gradient(145deg, #00333D 0%, #00171C 100%) !important;
         border: 2px solid #00E5FF !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(0, 229, 255, 0.25);
-        color: #FFFFFF !important;
+        box-shadow: 0 6px 22px rgba(0, 229, 255, 0.3);
     }
-    .theme-tab7 h3, .theme-tab7 h4 { color: #84FFFF !important; font-weight: 800; }
 
-    /* Option Selection Cards (Dropdowns & Radios) */
+    /* 7. OPTION SELECTION CONTAINER */
     .option-card {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1.5px solid rgba(255, 143, 0, 0.4) !important;
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 14px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     }
     .option-title {
         font-weight: 800;
-        font-size: 1rem;
-        margin-bottom: 6px;
+        font-size: 1.05rem;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
-    /* Structured Response Cards (Roleplay) */
-    .roleplay-card {
-        background: #140A02 !important;
-        border: 2px solid #FF8F00 !important;
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin: 12px 0;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    }
-    .roleplay-sanskrit {
-        font-size: 1.4rem;
-        font-weight: 800;
-        color: #FFE082 !important;
-        line-height: 1.5;
-        margin-bottom: 10px;
-    }
-
-    /* High-Contrast Solid Answer & Explanation Box */
+    /* 8. HIGH-CONTRAST SOLID ANSWER & EXPLANATION BOX */
     .answer-box {
-        background: #081C10 !important;
-        border: 2px solid #2E7D32 !important;
+        background: #061A0E !important;
+        border: 2px solid #00E676 !important;
         border-radius: 14px;
         padding: 18px 22px;
         margin-top: 16px;
         color: #FFFFFF !important;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        box-shadow: 0 6px 22px rgba(0, 230, 118, 0.35);
     }
     .answer-header {
-        color: #81C784 !important;
+        color: #69F0AE !important;
         font-size: 1.2rem;
         font-weight: 800;
         margin: 0 0 10px 0;
@@ -364,14 +380,15 @@ st.markdown("""
         background: #FFD54F !important;
         color: #000000 !important;
         font-weight: 900 !important;
-        padding: 4px 12px;
+        padding: 3px 12px;
         border-radius: 6px;
         display: inline-block;
         font-size: 1.05rem;
+        box-shadow: 0 2px 8px rgba(255, 213, 79, 0.4);
     }
     .explanation-callout {
         background: rgba(255, 255, 255, 0.08) !important;
-        border-left: 4px solid #81C784 !important;
+        border-left: 4px solid #69F0AE !important;
         padding: 12px 16px;
         border-radius: 0 10px 10px 0;
         margin-top: 10px;
@@ -380,19 +397,43 @@ st.markdown("""
         color: #FFFFFF !important;
     }
 
-    /* Custom Buttons per theme */
+    /* 9. AVATAR ANIMATION */
+    .avatar-wrapper {
+        position: relative;
+        width: 75px;
+        height: 75px;
+        margin: 0 auto;
+    }
+    .avatar-base {
+        width: 75px;
+        height: 75px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #FF8F00;
+        box-shadow: 0 0 18px rgba(255, 143, 0, 0.6);
+        animation: avatarGlow 3s infinite alternate ease-in-out;
+    }
+    @keyframes avatarGlow {
+        0% { box-shadow: 0 0 10px rgba(255, 143, 0, 0.5); }
+        100% { box-shadow: 0 0 24px rgba(255, 213, 79, 0.9); }
+    }
+
+    /* 10. BUTTON OVERRIDES */
     div.stButton > button {
+        background: linear-gradient(135deg, #E65100, #FF6D00) !important;
+        color: #FFFFFF !important;
+        border: 1px solid #FFD54F !important;
         border-radius: 24px !important;
         font-weight: 800 !important;
         font-size: 1rem !important;
         padding: 10px 24px !important;
         transition: all 0.3s ease !important;
-        border: none !important;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.3) !important;
+        box-shadow: 0 4px 16px rgba(230, 81, 0, 0.4) !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.4) !important;
+        box-shadow: 0 8px 24px rgba(255, 143, 0, 0.7) !important;
+        background: linear-gradient(135deg, #FF6D00, #FFA000) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -419,31 +460,61 @@ def render_highlighted_roleplay_card(content_text):
         sanskrit = content_text
 
     st.markdown(f"""
-    <div class="roleplay-card">
+    <div style="background:#170A02; border:2px solid #FF8F00; border-radius:14px; padding:18px 22px; margin:12px 0; color:#FFFFFF; box-shadow:0 4px 16px rgba(0,0,0,0.4);">
         <div style="font-size:0.85rem; font-weight:800; color:#FF8F00; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">
             🚩 संस्कृत-सम्भाषणम् (Spoken Sanskrit)
         </div>
-        <div class="roleplay-sanskrit">{sanskrit}</div>
+        <div style="font-size:1.4rem; font-weight:800; color:#FFE082; line-height:1.5; margin-bottom:10px;">{sanskrit}</div>
         {f'<div style="color:#80D8FF; font-size:0.95rem; font-style:italic; margin-bottom:6px;"><b>IAST:</b> {iast}</div>' if iast else ''}
         {f'<div style="color:#A5D6A7; font-size:1rem; font-weight:600; margin-bottom:8px;"><b>अर्थः (Meaning):</b> {english}</div>' if english else ''}
         {f'<div style="background:rgba(255,255,255,0.06); border-left:4px solid #CE93D8; padding:8px 12px; border-radius:0 8px 8px 0; color:#F3E5F5; font-size:0.9rem;">💡 <b>Say It Better / सुभाषितम्:</b> {tip}</div>' if tip else ''}
     </div>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR: GURU PROFILE & XP TRACKER ---
-u_streak, u_xp, u_level, u_name = get_user_stats(st.session_state.user_session_id)
+# Helper: Load images from assets/ with fallback
+def get_avatar_img(base_name, fallback_url):
+    extensions = [".jpeg", ".jpg", ".png", ".JPEG", ".JPG", ".PNG"]
+    assets_dir = os.path.join(BASE_DIR, "assets")
+    for ext in extensions:
+        local_p = os.path.join(assets_dir, base_name + ext)
+        if os.path.isfile(local_p):
+            try:
+                mime = "image/jpeg" if ext.lower() in [".jpeg", ".jpg"] else "image/png"
+                with open(local_p, "rb") as img_f:
+                    b64 = base64.b64encode(img_f.read()).decode()
+                    return f"data:{mime};base64,{b64}", f"Custom Asset ({base_name}{ext})"
+            except Exception:
+                pass
+    return fallback_url, "Default Avatar"
+
+male_src, male_status = get_avatar_img("male_guru", "https://upload.wikimedia.org/wikipedia/commons/e/e3/Raja_Ravi_Varma_-_Sankaracharya.jpg")
+female_src, female_status = get_avatar_img("female_guru", "https://dme2wmiz2suov.cloudfront.net/User(18985117)/2061981-Yadavabhyudayam_(9).png")
+child_src, child_status = get_avatar_img("child_guru", "https://encrypted-tbn3.gstatic.com/licensed-image?q=tbn:ANd9GcQzrF7mhDcZqvcP2RO27fhrcZXbPYo76WyMLq97WTaUJbXdG3OP6XXd3kC2v3A7-6qYwUBpUaNci3jGXWs")
 
 TEACHERS = {
-    "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)": {"tld": "co.in", "slow": True, "desc": "Classical Sage • Deep Vedic Cadence"},
-    "आचार्या गार्गी (Acharyaa Gargi)": {"tld": "com", "slow": False, "desc": "Philosophical Preceptor • Melodic & Clear"},
-    "बालकः ध्रुवः (Balaka Dhruva)": {"tld": "co.uk", "slow": False, "desc": "Young Companion • Fast & Playful"}
+    "आचार्यः वसिष्ठः (Acharya Vasiṣṭha)": {"tld": "co.in", "slow": True, "desc": "Classical Sage • Deep Vedic Cadence", "img": male_src},
+    "आचार्या गार्गी (Acharyaa Gargi)": {"tld": "com", "slow": False, "desc": "Philosophical Preceptor • Melodic & Clear", "img": female_src},
+    "बालकः ध्रुवः (Balaka Dhruva)": {"tld": "co.uk", "slow": False, "desc": "Young Companion • Fast & Playful", "img": child_src}
 }
+
+# --- SIDEBAR: GURU PROFILE & XP TRACKER ---
+u_streak, u_xp, u_level, u_name = get_user_stats(st.session_state.user_session_id)
 
 with st.sidebar:
     st.markdown("### 🚩 **संस्कृत-AI-गुरुः**")
     selected_teacher_name = st.selectbox("Active Preceptor / गुरुः:", list(TEACHERS.keys()), index=0)
     t_info = TEACHERS[selected_teacher_name]
-    st.caption(t_info["desc"])
+    
+    # Animated Avatar Display
+    st.markdown(f"""
+    <div style="text-align:center; padding:12px; background:#1E0E02; border-radius:14px; border:1.5px solid #FF8F00; margin-bottom:10px;">
+        <div class="avatar-wrapper">
+            <img src="{t_info['img']}" class="avatar-base"/>
+        </div>
+        <div style="font-weight:800; color:#FFD54F; font-size:1rem; margin-top:8px;">{selected_teacher_name.split('(')[0].strip()}</div>
+        <div style="font-size:0.78rem; color:#DDD;">{t_info['desc']}</div>
+    </div>
+    """, unsafe_allow_html=True)
     
     api_key = st.text_input(
         "Google Gemini API Key",
@@ -476,19 +547,19 @@ if "chat_history" not in st.session_state:
 st.markdown("""
 <div class="hero-banner">
     <h2 style="margin:0; font-weight:900; letter-spacing:0.5px;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.95; font-size:0.95rem;">Multi-Themed Gamified Sanskrit AI • Amarakośa • Rūpa Arena • Chandaḥ • Mottos • Pañcāṅga</p>
+    <p style="margin:4px 0 0 0; opacity:0.95; font-size:0.95rem;">Immersive Sanskrit AI Platform • High-Contrast Design • Amarakośa • Rūpa Arena • Chandaḥ • Mottos</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- 7 MASTER TABS ---
 tab_roleplay, tab_trans, tab_amara, tab_rupa, tab_chandas, tab_motto, tab_samskriti = st.tabs([
-    "💬 1. Saṃbhāṣaṇa (Roleplay)",
-    "🌐 2. Anuvāda-Setu (Translator)",
-    "📖 3. Amarakośa-Vyūha (Thesaurus)",
-    "🏛️ 4. Rūpa-Sādhana (Grammar Arena)",
-    "🕉️ 5. Chandaḥ Engine (Metre)",
-    "🚩 6. Saṃsthā-Dhyeya (Mottos)",
-    "🛕 7. Saṃskṛti-Jñāna (Vedas & Festivals)"
+    "💬 1. Saṃbhāṣaṇa",
+    "🌐 2. Anuvāda-Setu",
+    "📖 3. Amarakośa-Vyūha",
+    "🏛️ 4. Rūpa-Sādhana",
+    "🕉️ 5. Chandaḥ Engine",
+    "🚩 6. Saṃsthā-Dhyeya",
+    "🛕 7. Saṃskṛti-Jñāna"
 ])
 
 # =========================================================
@@ -498,7 +569,7 @@ with tab_roleplay:
     st.markdown("""
     <div class="theme-tab1">
         <h3>💬 Saṃbhāṣaṇa Arena (सजीव-सम्भाषणम्)</h3>
-        <p style="color:#DDD; margin:0;">Immerse yourself in authentic spoken Sanskrit dialogues with real-time feedback.</p>
+        <p style="color:#DDD; margin:0;">Immerse yourself in authentic spoken Sanskrit dialogues with real-time audio and corrections.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -936,7 +1007,7 @@ with tab_motto:
     
     for m in mottos_db:
         st.markdown(f"""
-        <div class="motto-badge">
+        <div style="background:linear-gradient(145deg, #2D1400, #140800); border-left:5px solid #FF8F00; border-radius:10px; padding:14px 18px; margin-bottom:12px; border:1px solid rgba(255, 143, 0, 0.25);">
             <h4 style="color:#FFD54F; margin:0; font-size:1.15rem;">🚩 "{m['motto']}"</h4>
             <div style="font-size:0.95rem; color:#FFF; margin-top:2px;"><b>Institution:</b> {m['org']}</div>
             <div style="font-size:0.88rem; color:#FFE082;"><b>Scriptural Source:</b> {m['source']} | <i>"{m['meaning']}"</i></div>
