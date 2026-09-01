@@ -23,19 +23,17 @@ import streamlit as st
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Sambhāṣaṇa AI Enterprise | सम्भाषणम्",
+    page_title="Sambhāṣaṇa AI Pro | सम्भाषण-प्रशिक्षकः",
     page_icon="🚩",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ACTIVE MODEL LOCKED TO GEMINI-3.6-FLASH
 ACTIVE_MODEL = "gemini-3.6-flash"
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "sambhāṣaṇa_concurrency.db")
 
-# --- CONCURRENT DATABASE LAYER (SQLite WAL Mode) ---
+# --- DATABASE PERSISTENCE LAYER (SQLite WAL Mode) ---
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -455,9 +453,10 @@ with tab_roleplay:
                             save_user_feedback(st.session_state.user_session_id, selected_teacher, prior_user, msg["content"], fb_type, fb_text)
                             st.success("✅ Remark saved successfully into the database!")
 
-    # Native Sanskrit Audio Input
-    st.markdown("##### 🎙️ **Speak into Microphone (वदतु):**")
-    user_audio = st.audio_input("Record voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
+    # Native Long-Duration Sanskrit Audio Input
+    st.markdown("##### 🎙️ **Speak into Microphone (वदतु - No Time Limit):**")
+    st.caption("Press record, speak your full paragraph or question (can speak for 1-2+ minutes), then press stop.")
+    user_audio = st.audio_input("Record continuous voice to Acharya:", key=f"mic_turn_{st.session_state.turn_count}")
 
     if user_audio is not None:
         if not api_key:
@@ -467,7 +466,7 @@ with tab_roleplay:
         client = genai.Client(api_key=api_key)
         audio_bytes = user_audio.getvalue()
         
-        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Spoken Question Submitted]*"})
+        st.session_state.chat_history.append({"role": "user", "content": "🎙️ *[Continuous Spoken Voice Submitted]*"})
         with st.chat_message("user"):
             st.audio(user_audio, format="audio/wav")
 
@@ -481,10 +480,10 @@ with tab_roleplay:
                             "role": "user",
                             "parts": [
                                 {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Listen carefully to the spoken audio and reply directly."}
+                                {"text": f"{FAST_SYSTEM_PROMPT}\nScenario: {scenario}. Transcribe student audio and reply comprehensively."}
                             ]
                         }],
-                        config={"temperature": 0.2, "max_output_tokens": 400}
+                        config={"temperature": 0.2, "max_output_tokens": 500}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
@@ -526,7 +525,7 @@ with tab_roleplay:
                     resp = client.models.generate_content(
                         model=ACTIVE_MODEL,
                         contents=contents,
-                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 400}
+                        config={"system_instruction": FAST_SYSTEM_PROMPT, "temperature": 0.2, "max_output_tokens": 500}
                     )
                     reply_text = resp.text
                     latency = round(time.time() - t_start, 2)
