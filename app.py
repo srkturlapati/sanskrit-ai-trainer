@@ -196,14 +196,6 @@ st.markdown("""
         border: 1px solid #4CAF50;
         margin-bottom: 6px;
     }
-    
-    .remark-box {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 143, 0, 0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 8px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -312,72 +304,108 @@ def render_talking_avatar(sanskrit_text: str, teacher_key: str, auto_play=True):
     </script>
     """, unsafe_allow_html=True)
 
-# --- CLIENT-SIDE LIVE SPEECH-TO-TEXT COMPONENT (AUTO-TYPE) ---
-def render_live_speech_recognizer():
+# --- CONTINUOUS EXTENDED SPEECH-TO-TEXT RECORDER (1-2+ MINUTES HOLD) ---
+def render_continuous_speech_recognizer():
     components.html("""
-    <div style="font-family:sans-serif; text-align:center; padding:8px; border-radius:10px; background:rgba(255,111,0,0.06); border:1px dashed #FF8F00;">
-        <div style="font-size:0.88rem; color:#FF8F00; font-weight:700; margin-bottom:6px;">🎙️ Live Speech-to-Text (Auto-Type in any language)</div>
-        <button id="micBtn" onclick="toggleDictation()" style="background:#E65100; color:white; border:none; padding:8px 18px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
-            🎙️ Start Speaking
-        </button>
-        <div id="statusText" style="font-size:0.8rem; color:#888; margin-top:5px;">Click to speak (English, Hindi, Sanskrit, Telugu)</div>
+    <div style="font-family:'Plus Jakarta Sans', sans-serif; text-align:center; padding:12px; border-radius:12px; background:rgba(255,111,0,0.05); border:2px dashed #FF8F00;">
+        <div style="font-size:0.95rem; color:#FF8F00; font-weight:700; margin-bottom:6px;">
+            🎙️ Continuous Speech-to-Text (Auto-Type in Sanskrit / Telugu / Hindi / English)
+        </div>
+        <div style="margin-bottom:8px;">
+            <button id="startMicBtn" onclick="startContinuousSpeech()" style="background:#E65100; color:white; border:none; padding:8px 20px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.9rem; margin-right:8px;">
+                🎙️ Start Continuous Listening (वदतु)
+            </button>
+            <button id="stopMicBtn" onclick="stopContinuousSpeech()" style="background:#424242; color:white; border:none; padding:8px 18px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:0.9rem; display:none;">
+                🛑 Stop & Keep Text
+            </button>
+        </div>
+        <div id="statusBox" style="font-size:0.85rem; color:#888;">Click Start to speak continuously for multiple minutes without cutoff.</div>
+        <div id="livePreview" style="margin-top:8px; font-size:0.95rem; color:#FFD54F; font-weight:600; min-height:22px;"></div>
     </div>
     <script>
-        var recognition;
-        var recognizing = false;
+        var recognition = null;
+        var isManualStop = false;
+        var accumulatedTranscript = "";
+
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'hi-IN'; // Works for Sanskrit, Hindi, and general Indic speech
-            
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'hi-IN'; // Highly accurate for Sanskrit, Hindi, and Indian phonetics
+
             recognition.onstart = function() {
-                recognizing = true;
-                document.getElementById('micBtn').style.background = '#2E7D32';
-                document.getElementById('micBtn').innerText = '🔴 Listening... (Speak now)';
-                document.getElementById('statusText').innerText = 'Listening to your voice...';
+                document.getElementById('startMicBtn').style.display = 'none';
+                document.getElementById('stopMicBtn').style.display = 'inline-block';
+                document.getElementById('statusBox').innerText = '🟢 Listening continuously... (Will hold for 2+ minutes while you speak)';
+                document.getElementById('statusBox').style.color = '#4CAF50';
             };
+
             recognition.onresult = function(event) {
-                var transcript = event.results[0][0].transcript;
-                document.getElementById('statusText').innerText = 'Recognized: ' + transcript;
-                
-                // Copy into Streamlit chat input or clipboard
-                navigator.clipboard.writeText(transcript);
+                var currentInterim = "";
+                for (var i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        accumulatedTranscript += event.results[i][0].transcript + " ";
+                    } else {
+                        currentInterim += event.results[i][0].transcript;
+                    }
+                }
+                var fullText = (accumulatedTranscript + currentInterim).trim();
+                document.getElementById('livePreview').innerText = "🗣️ " + fullText;
+
+                // Sync live into Streamlit chat input box
                 var inputs = window.parent.document.querySelectorAll('textarea, input[type=text]');
-                if(inputs.length > 0) {
+                if (inputs.length > 0) {
                     var lastInput = inputs[inputs.length - 1];
-                    lastInput.value = transcript;
+                    lastInput.value = fullText;
                     lastInput.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             };
-            recognition.onerror = function() {
-                recognizing = false;
-                document.getElementById('micBtn').style.background = '#E65100';
-                document.getElementById('micBtn').innerText = '🎙️ Start Speaking';
-                document.getElementById('statusText').innerText = 'Speech error. Please try again.';
+
+            recognition.onerror = function(event) {
+                if (event.error !== 'no-speech') {
+                    document.getElementById('statusBox').innerText = 'Note: ' + event.error;
+                }
             };
+
+            // AUTO KEEP-ALIVE: If browser pauses speech, restart automatically unless manually stopped
             recognition.onend = function() {
-                recognizing = false;
-                document.getElementById('micBtn').style.background = '#E65100';
-                document.getElementById('micBtn').innerText = '🎙️ Start Speaking';
+                if (!isManualStop) {
+                    try { recognition.start(); } catch(e) {}
+                } else {
+                    document.getElementById('startMicBtn').style.display = 'inline-block';
+                    document.getElementById('stopMicBtn').style.display = 'none';
+                    document.getElementById('statusBox').innerText = '✅ Speech captured! Press Enter in the box below to send to Acharya.';
+                    document.getElementById('statusBox').style.color = '#888';
+                }
             };
         } else {
-            document.getElementById('statusText').innerText = 'Use Chrome/Edge/Safari for live speech typing.';
+            document.getElementById('statusBox').innerText = 'Please use Chrome, Edge, or Safari for continuous auto-speech.';
         }
-        function toggleDictation() {
+
+        function startContinuousSpeech() {
             if (recognition) {
-                if (recognizing) { recognition.stop(); } else { recognition.start(); }
+                isManualStop = false;
+                accumulatedTranscript = "";
+                document.getElementById('livePreview').innerText = "";
+                try { recognition.start(); } catch(e) {}
+            }
+        }
+
+        function stopContinuousSpeech() {
+            if (recognition) {
+                isManualStop = true;
+                recognition.stop();
             }
         }
     </script>
-    """, height=95)
+    """, height=125)
 
 # --- HERO ---
 st.markdown("""
 <div class="header-box">
     <h2 style="margin:0; font-weight:800;">🚩 Sambhāṣaṇa AI Pro (सम्भाषण-प्रशिक्षकः)</h2>
-    <p style="margin:4px 0 0 0; opacity:0.9;">High-Speed Spoken Sanskrit AI • Live Auto-Type • Inline Remarks & Feedback</p>
+    <p style="margin:4px 0 0 0; opacity:0.9;">High-Speed Spoken Sanskrit AI • Continuous Voice Auto-Type • Inline Remarks for Every Turn</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -443,7 +471,7 @@ Format ALWAYS:
 - 💡 Hint & rule
 """
 
-# --- 5 FOCUSED TABS (No redundant remarks tab) ---
+# --- 5 FOCUSED TABS ---
 tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
     "💬 1. Fast Oral Roleplay",
     "🎙️ 2. Śikṣā Phonetics",
@@ -453,7 +481,7 @@ tab_roleplay, tab_shiksha, tab_chandas, tab_vault, tab_trans = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: FAST ORAL ROLEPLAY + INLINE REMARKS
+# TAB 1: FAST ORAL ROLEPLAY + REMARKS ON EVERY RESPONSE
 # =========================================================
 with tab_roleplay:
     st.markdown("#### 💬 Live Conversation with AI Tutor (सजीव-सम्भाषणम्)")
@@ -469,7 +497,7 @@ with tab_roleplay:
         ]
     )
     
-    # 1. Render Messages with Complete Speech & Direct Inline Remarks Form
+    # 1. Render Messages with Complete Speech & Inline Remarks for EVERY response
     for idx, msg in enumerate(st.session_state.chat_history):
         role = "assistant" if msg["role"] == "model" else "user"
         with st.chat_message(role):
@@ -479,35 +507,34 @@ with tab_roleplay:
                 if full_s:
                     render_talking_avatar(full_s, selected_teacher, auto_play=False)
                 
-                # --- INLINE REMARK & FEEDBACK FORM ---
-                with st.expander("💬 Add Remark / Report Mistake on this Response"):
-                    with st.form(key=f"remark_form_{idx}"):
+                # --- INLINE REMARK & FEEDBACK OPTION FOR THIS SPECIFIC RESPONSE ---
+                with st.expander(f"📝 Remark / Feedback on Response #{idx // 2 + 1}"):
+                    with st.form(key=f"remark_turn_form_{idx}"):
                         fb_type = st.selectbox(
-                            "Classification:",
+                            "Remark Classification / प्रकारः:",
                             [
-                                "⚠️ Grammar / Sūtra Error (व्याकरण-दोषः)",
+                                "⚠️ Grammar / Sūtra Mistake (व्याकरण-दोषः)",
                                 "⚠️ Inaccurate Translation (अनुवाद-दोषः)",
-                                "⚠️ Sandhi / Spelling Mistake (सन्धि/वर्ण-दोषः)",
-                                "💡 Suggestion / Better Word (सुझावः)",
+                                "⚠️ Sandhi / Spelling Error (सन्धि/वर्ण-दोषः)",
+                                "💡 Suggestion for Improvement (सुझावः)",
                                 "✅ Auspicious & Correct (उत्कृष्टम्)"
                             ],
-                            key=f"fb_sel_{idx}"
+                            key=f"fb_type_{idx}"
                         )
-                        fb_text = st.text_area("Write your remarks / correction:", key=f"fb_txt_{idx}", placeholder="e.g. In line 1, please use 'गच्छामि'...")
-                        submitted = st.form_submit_button("💾 Save Remark (पञ्जीकरणम्)")
+                        fb_text = st.text_area("Write remarks or exact correction:", key=f"fb_text_{idx}", placeholder="e.g. In sentence 1, 'गच्छामि' should be used...")
+                        submitted = st.form_submit_button("💾 Save Remark (पञ्जीकरणं कुरु)")
                         if submitted:
                             prior_user = st.session_state.chat_history[idx - 1]["content"] if idx > 0 else "N/A"
                             save_feedback(selected_teacher, prior_user, msg["content"], fb_type, fb_text)
-                            st.success("✅ Remark saved successfully into the database!")
+                            st.success("✅ Remark successfully saved into SQLite database!")
 
-    # 2. CLIENT-SIDE LIVE SPEECH-TO-TEXT (AUTO-TYPE)
+    # 2. CONTINUOUS SPEECH-TO-TEXT AUTO-TYPE (HOLDS FOR 1-2+ MINUTES)
     st.write("---")
-    render_live_speech_recognizer()
+    render_continuous_speech_recognizer()
 
-    # 3. FAST AUDIO RECORDING WIDGET
-    user_audio = st.audio_input("Or Record Voice Question:", key=f"mic_turn_{st.session_state.turn_count}")
+    # 3. BACKUP DIRECT AUDIO RECORDER WIDGET
+    user_audio = st.audio_input("Or Record Voice directly:", key=f"mic_turn_{st.session_state.turn_count}")
 
-    # Process Audio Input
     if user_audio is not None:
         if not api_key:
             st.warning("⚠️ Enter your Gemini API key in the sidebar.")
@@ -552,8 +579,8 @@ with tab_roleplay:
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 
-    # Process Text Input (Direct or Auto-Typed)
-    if text_input := st.chat_input("Type here or speak with the microphone above..."):
+    # 4. CHAT INPUT (AUTO-POPULATED BY LIVE SPEECH)
+    if text_input := st.chat_input("Auto-typed text appears here... Or type manually:"):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
             st.stop()
