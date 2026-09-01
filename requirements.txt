@@ -2,3 +2,5 @@ streamlit
 google-genai
 indic-transliteration
 gTTS
+edge-tts
+asyncio
