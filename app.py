@@ -149,16 +149,6 @@ def update_user_xp(uid, xp_add=10):
     conn.commit()
     conn.close()
 
-def save_user_feedback(uid, teacher_name, user_prompt, response_text, fb_type, remark):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO feedback_logs (timestamp, user_id, teacher_name, user_prompt, acharya_response, feedback_type, remark_text)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), uid, teacher_name, user_prompt, response_text, fb_type, remark))
-    conn.commit()
-    conn.close()
-
 # --- AUDIO GENERATION & AVATAR ENGINE ---
 @st.cache_data(show_spinner=False, max_entries=200)
 def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> str:
@@ -172,7 +162,6 @@ def get_speech_audio_b64(text: str, tld: str = "co.in", slow: bool = False) -> s
     except Exception:
         return ""
 
-# Helper: Auto-Type Script Component for Text Inputs
 def render_autotype_mic(target_input_hint=""):
     components.html(f"""
     <div style="font-family:'Plus Jakarta Sans', sans-serif; display:flex; align-items:center; gap:10px; background:rgba(255,111,0,0.06); padding:8px 14px; border-radius:10px; border:1px dashed #FF8F00; margin: 6px 0;">
@@ -242,6 +231,13 @@ st.markdown("""
         padding: 18px;
         margin-bottom: 12px;
     }
+    .answer-box {
+        background: rgba(46, 125, 50, 0.12);
+        border: 1.5px solid #4CAF50;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-top: 12px;
+    }
     .motto-badge {
         background: linear-gradient(145deg, #3E2723, #1A0C00);
         border-left: 4px solid #FF8F00;
@@ -298,7 +294,7 @@ if "chat_history" not in st.session_state:
 st.markdown("""
 <div class="hero-banner">
     <h2 style="margin:0; font-weight:800;">🚩 Saṃskṛta-Krīḍā-Guruḥ (संस्कृत-क्रीडा-गुरुः)</h2>
-    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • Amarakośa • Rūpa Matrix • Chandaḥ • Mottos • Pañcāṅga</p>
+    <p style="margin:2px 0 0 0; opacity:0.92; font-size:0.9rem;">Comprehensive Gamified AI • Instant Answer Keys & Explanations • Amarakośa • Rūpa Arena</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -423,7 +419,7 @@ Text:
                 st.error(f"Translation Error: {str(e)}")
 
 # =========================================================
-# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES)
+# TAB 3: AMARAKOŚA-VYŪHA (THESAURUS GAMES + ANSWER KEYS)
 # =========================================================
 with tab_amara:
     st.markdown("#### 📖 अमरकोश-व्यूहः (Amarakośa Thesaurus & Synonym Arena)")
@@ -450,13 +446,31 @@ with tab_amara:
             a4 = st.selectbox("Select match for पृथिवी:", ["वसुन्धरा / मेदिनी", "गगनम्", "पवनः", "अर्णवः"], key="am_4")
             
         if st.button("Submit Amarakośa Matches / उत्तरं समर्पय", key="btn_amara"):
-            score = (a1.startswith("वैश्वानरः")) + (a2.startswith("दिनकरः")) + (a3.startswith("मृगेन्द्रः")) + (a4.startswith("वसुन्धरा"))
+            is_a1 = a1.startswith("वैश्वानरः")
+            is_a2 = a2.startswith("दिनकरः")
+            is_a3 = a3.startswith("मृगेन्द्रः")
+            is_a4 = a4.startswith("वसुन्धरा")
+            score = is_a1 + is_a2 + is_a3 + is_a4
+            
             if score == 4:
                 st.balloons()
                 st.success("🏆 सम्पूर्णं सत्यम्! All 4 synonyms matched accurately! (+40 XP)")
                 update_user_xp(st.session_state.user_session_id, 40)
             else:
-                st.warning(f"Score: {score}/4. Review the Amarakośa verses and retry!")
+                st.warning(f"Score: {score}/4.")
+                
+            # DISPLAY COMPLETE ANSWER KEY
+            st.markdown(f"""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Correct Answers & Amarakośa Key:</h4>
+                <ul style="margin:0; padding-left:20px; font-size:0.92rem; color:#DDD;">
+                    <li><b>अग्निः (Fire):</b> <span style="color:#FFD54F;">वैश्वानरः / वह्निः / पावकः</span> {'✅' if is_a1 else '❌'}</li>
+                    <li><b>सूर्यः (Sun):</b> <span style="color:#FFD54F;">दिनकरः / मार्तण्डः / भानुः / सविता</span> {'✅' if is_a2 else '❌'}</li>
+                    <li><b>सिंहः (Lion):</b> <span style="color:#FFD54F;">मृगेन्द्रः / पञ्चाननः / केसरी</span> {'✅' if is_a3 else '❌'}</li>
+                    <li><b>पृथिवी (Earth):</b> <span style="color:#FFD54F;">वसुन्धरा / मेदिनी / उर्वी / धरणी</span> {'✅' if is_a4 else '❌'}</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
 
     elif amara_game.startswith("2"):
         st.markdown("##### 🔍 Identify the Intruder (Which word is NOT a synonym?)")
@@ -467,21 +481,42 @@ with tab_amara:
                 st.success("✅ साधु! 'भास्करः' means Sun, while the rest are synonyms for the Moon. (+15 XP)")
                 update_user_xp(st.session_state.user_session_id, 15)
             else:
-                st.error("❌ Incorrect. Try again!")
+                st.error("❌ Incorrect choice.")
+            
+            st.markdown("""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Explanation & Answer Key:</h4>
+                <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                    <b>Correct Intruder:</b> <span style="color:#FFD54F;">भास्करः (The Sun)</span>.<br>
+                    <i>चन्द्रः, हिमांशुः (He of cool rays), and सुधाकरः (Mine of nectar)</i> are all classical Amarakośa synonyms for the <b>Moon (शशाङ्कः)</b>.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
     else:
         st.markdown("##### 📜 Amarakośa Verse Clue & Word Hunt")
         st.code("खं नभो रोदसी चाभ्रं पुष्करं विष्णुपदं नमः। (अमरकोशः १.२.१)")
         ans_hunt = st.text_input("Which cosmic entity is described in this Amarakośa verse? (English/Sanskrit):")
         if st.button("Verify Clue"):
-            if any(k in ans_hunt.lower() for k in ["sky", "space", "आकाश", "गगन", "द्यौः"]):
-                st.success("🎉 उत्कृष्टम्! It lists synonyms for Sky/Space (आकाशः)! (+25 XP)")
+            is_right = any(k in ans_hunt.lower() for k in ["sky", "space", "आकाश", "गगन", "द्यौः", "खम्", "नभः"])
+            if is_right:
+                st.success("🎉 उत्कृष्टम्! Correctly identified! (+25 XP)")
                 update_user_xp(st.session_state.user_session_id, 25)
             else:
-                st.info("💡 Hint: It refers to the celestial firmament / Sky (आकाशः).")
+                st.error("❌ Incorrect identification.")
+            
+            st.markdown("""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Solution & Lexicon Note:</h4>
+                <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                    <b>Target Answer:</b> <span style="color:#FFD54F;">आकाशः / गगनम् (Sky / Space / Celestial Firmament)</span>.<br>
+                    <b>Listed Amarakośa Synonyms in Verse:</b> <i>खम् (Kham), नभः (Nabhaḥ), रोदसी (Rodasī), अभ्रम् (Abhram), पुष्करम् (Puṣkaram), विष्णुपदम् (Viṣṇupadam).</i>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA)
+# TAB 4: RŪPA-SĀDHANA (GRAMMAR ARENA + ANSWER KEYS)
 # =========================================================
 with tab_rupa:
     st.markdown("#### 🏛️ रूप-साधना (Śabdarūpa & Dhāturūpa Matrix Drills)")
@@ -520,7 +555,40 @@ with tab_rupa:
                 st.success("🏆 सम्पूर्णं शुद्धम्! All 6 declension slots are perfectly accurate! (+50 XP)")
                 update_user_xp(st.session_state.user_session_id, 50)
             else:
-                st.warning(f"Score: {total_corr}/6 correct. Check Vibhakti endings and retry!")
+                st.warning(f"Score: {total_corr}/6 correct.")
+                
+            # DISPLAY MATRIX ANSWER KEY
+            st.markdown(f"""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Complete Śabdarūpa Answer Key (राम - Masculine):</h4>
+                <table style="width:100%; border-collapse:collapse; color:#DDD; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <th style="text-align:left; padding:4px;">विभक्तिः (Case)</th>
+                        <th style="text-align:left; padding:4px;">एकवचनम्</th>
+                        <th style="text-align:left; padding:4px;">द्विवचनम्</th>
+                        <th style="text-align:left; padding:4px;">बहुवचनम्</th>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px;"><b>प्रथमा (Nom):</b></td>
+                        <td style="padding:4px; color:#AAA;">रामः</td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामौ</b> {'✅' if c_dvi else '❌'}</td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामाः</b> {'✅' if c_bahu else '❌'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px;"><b>तृतीया (Inst):</b></td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामेण</b> {'✅' if c_inst1 else '❌'}</td>
+                        <td style="padding:4px; color:#AAA;">रामाभ्याम्</td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामैः</b> {'✅' if c_inst3 else '❌'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px;"><b>सप्तमी (Loc):</b></td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामे</b> {'✅' if c_loc1 else '❌'}</td>
+                        <td style="padding:4px; color:#FFD54F;"><b>रामयोः</b> {'✅' if c_loc2 else '❌'}</td>
+                        <td style="padding:4px; color:#AAA;">रामेषु</td>
+                    </tr>
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
 
     else:
         st.markdown("##### ⚡ Dhāturūpa Tense & Mood Classifier")
@@ -534,17 +602,30 @@ with tab_rupa:
             "विधिलिङ् (Potential/Optative Mood)"
         ])
         if st.button("Submit Lakāra Assessment"):
-            is_right = False
-            if "पठिष्यति" in dh_sample and "लृट्" in c_lakara: is_right = True
-            elif "अगच्छत्" in dh_sample and "लङ्" in c_lakara: is_right = True
-            elif "भवतु" in dh_sample and "लोट्" in c_lakara: is_right = True
-            elif "कुर्यात्" in dh_sample and "विधिलिङ्" in c_lakara: is_right = True
+            correct_map = {
+                "पठिष्यति (Root: पठ्)": ("लृट् (Future Tense)", "Identified by the future suffix '-ष्यति' (लृट्-लकारः)."),
+                "अगच्छत् (Root: गम्)": ("लङ् (Past Imperfect)", "Identified by the augment 'अ-' prefix and halanta ending (लङ्-लकारः)."),
+                "भवतु (Root: भू)": ("लोट् (Imperative Mood)", "Identified by command/benedictive ending '-तु' (लोट्-लकारः)."),
+                "कुर्यात् (Root: कृ)": ("विधिलिङ् (Potential/Optative Mood)", "Identified by potential optative ending '-यात्' (विधिलिङ्-लकारः).")
+            }
+            target_ans, target_rule = correct_map[dh_sample]
             
-            if is_right:
+            if target_ans.split()[0] in c_lakara:
                 st.success("✅ साधु! Correct Lakāra identified accurately! (+20 XP)")
                 update_user_xp(st.session_state.user_session_id, 20)
             else:
-                st.error("❌ Incorrect Lakāra. Review verbal suffixes (-ष्यति, अ- -त्, -तु, -यात्).")
+                st.error("❌ Incorrect Lakāra.")
+                
+            st.markdown(f"""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Verb Analysis & Lakāra Key:</h4>
+                <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                    <b>Target Verb:</b> <span style="color:#FFD54F;">{dh_sample}</span><br>
+                    <b>Correct Lakāra:</b> <span style="color:#81C784;"><b>{target_ans}</b></span><br>
+                    <b>Pāṇinian Rule:</b> <i>{target_rule}</i>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =========================================================
 # TAB 5: CHANDAḤ & ŚIKṢĀ (PHONETICS & METRES)
@@ -609,14 +690,14 @@ with tab_chandas:
         client = genai.Client(api_key=api_key)
         with st.spinner("Scansion in progress..."):
             try:
-                res = generate_gemini_content(client, [{"role": "user", "parts": [{"text": f"Scan Pingala Chandas for: '{v_scan}'. Return: 1. Metre Name, 2. Laghu/Guru mapping, 3. Gana breakdown."}]}])
+                res = generate_gemini_content(client, [{"role": "user", "parts": [{"text": f"Perform Pingala Chandas for: '{v_scan}'. Return: 1. Metre Name, 2. Laghu/Guru mapping, 3. Gana breakdown."}]}])
                 st.markdown(res)
                 update_user_xp(st.session_state.user_session_id, 20)
             except Exception as e:
                 st.error(str(e))
 
 # =========================================================
-# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS)
+# TAB 6: SAṂSTHĀ-DHYEYA (ORGANIZATION MOTTOS + ANSWER KEYS)
 # =========================================================
 with tab_motto:
     st.markdown("#### 🚩 संस्था-ध्येयवाक्य-क्रीडा (National & Global Sanskrit Mottos)")
@@ -644,14 +725,26 @@ with tab_motto:
     st.markdown("##### 🎮 Quiz: Identify the Scriptural Source")
     m_quiz = st.radio("Where is the motto **'योगक्षेमं वहाम्यहम्'** taken from?", ["Bhagavad Gītā (Chapter 9)", "Muṇḍaka Upaniṣad", "Rāmāyaṇa", "Ṛgveda"])
     if st.button("Verify Motto Source"):
-        if "Bhagavad Gītā" in m_quiz:
-            st.success("🎉 उत्कृष्टम्! It is spoken by Śrī Kṛṣṇa in Bhagavad Gītā Chapter 9, Verse 22! (+25 XP)")
+        is_correct = ("Bhagavad Gītā" in m_quiz)
+        if is_correct:
+            st.success("🎉 उत्कृष्टम्! Correct scriptural source identified! (+25 XP)")
             update_user_xp(st.session_state.user_session_id, 25)
         else:
-            st.error("❌ Incorrect. Review Chapter 9 (Rāja-Vidyā-Rāja-Guhya-Yoga).")
+            st.error("❌ Incorrect choice.")
+            
+        st.markdown("""
+        <div class="answer-box">
+            <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Correct Source & Verse Details:</h4>
+            <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                <b>Correct Source:</b> <span style="color:#FFD54F;">Bhagavad Gītā (Chapter 9, Verse 22)</span>.<br>
+                <b>Full Śloka:</b> <i>अनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते। तेषां नित्याभियुक्तानां <b>योगक्षेमं वहाम्यहम्</b>॥</i><br>
+                <b>Meaning:</b> <i>"To those who worship Me with single-minded devotion, I carry what they lack and preserve what they have."</i>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # =========================================================
-# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & FESTIVALS)
+# TAB 7: SAṂSKṚTI-JÑĀNA (VEDAS, TITHIS & ANSWER KEYS)
 # =========================================================
 with tab_samskriti:
     st.markdown("#### 🛕 संस्कृति-ज्ञानम् (Vedic Literature, Pañcāṅga Tithis & Festivals)")
@@ -668,13 +761,31 @@ with tab_samskriti:
             t4 = st.selectbox("4. भाद्रपद-शुक्ल-चतुर्थी:", ["विनायक-चतुर्थी (Ganesha Chaturthi)", "जन्माष्टमी", "दशहरा", "उगादिः"])
             
         if st.button("Submit Pañcāṅga Assessment"):
-            f_score = (t1.startswith("रक्षाबन्धनम्")) + (t2.startswith("दीपावली")) + (t3.startswith("होलिकोत्सवः")) + (t4.startswith("विनायक"))
+            is_t1 = t1.startswith("रक्षाबन्धनम्")
+            is_t2 = t2.startswith("दीपावली")
+            is_t3 = t3.startswith("होलिकोत्सवः")
+            is_t4 = t4.startswith("विनायक")
+            f_score = is_t1 + is_t2 + is_t3 + is_t4
+            
             if f_score == 4:
                 st.balloons()
                 st.success("🏆 सम्पूर्णं सत्यम्! All 4 Pañcāṅga festival dates matched accurately! (+40 XP)")
                 update_user_xp(st.session_state.user_session_id, 40)
             else:
-                st.warning(f"Score: {f_score}/4. Review the Indian calendar and retry!")
+                st.warning(f"Score: {f_score}/4.")
+                
+            # DISPLAY PAÑCĀṄGA ANSWER KEY
+            st.markdown(f"""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 8px 0;">🔑 Pañcāṅga & Tithi Answer Key:</h4>
+                <ul style="margin:0; padding-left:20px; font-size:0.92rem; color:#DDD;">
+                    <li><b>श्रावण-पूर्णिमा:</b> <span style="color:#FFD54F;">रक्षाबन्धनम् / विश्व-संस्कृत-दिनम्</span> {'✅' if is_t1 else '❌'}</li>
+                    <li><b>कार्तिक-अमावास्या:</b> <span style="color:#FFD54F;">दीपावली (Lakṣmī Pūjana)</span> {'✅' if is_t2 else '❌'}</li>
+                    <li><b>फाल्गुन-पूर्णिमा:</b> <span style="color:#FFD54F;">होलिकोत्सवः / कामदहनम्</span> {'✅' if is_t3 else '❌'}</li>
+                    <li><b>भाद्रपद-शुक्ल-चतुर्थी:</b> <span style="color:#FFD54F;">विनायक-चतुर्थी (Ganesha Chaturthi)</span> {'✅' if is_t4 else '❌'}</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
 
     elif s_mode.startswith("2"):
         st.markdown("##### 📜 Vedic Heritage Tree")
@@ -686,19 +797,46 @@ with tab_samskriti:
         """)
         q_v = st.radio("Which Upaniṣad contains the famous Mahāvākya **'अयमात्मा ब्रह्म'**?", ["माण्डूक्योपनिषद् (Atharvaveda)", "छान्दोग्योपनिषद्", "ईशावास्योपनिषद्"])
         if st.button("Submit Veda Quiz"):
-            if "माण्डूक्योपनिषद्" in q_v:
-                st.success("✅ सत्यम्! Māṇḍūkya Upaniṣad (Atharvaveda) declares 'अयमात्मा ब्रह्म'. (+20 XP)")
+            is_right = ("माण्डूक्योपनिषद्" in q_v)
+            if is_right:
+                st.success("✅ सत्यम्! Correct Upaniṣadic source identified! (+20 XP)")
                 update_user_xp(st.session_state.user_session_id, 20)
             else:
-                st.error("❌ Incorrect. Try again!")
+                st.error("❌ Incorrect choice.")
+                
+            st.markdown("""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Mahāvākya & Upaniṣad Key:</h4>
+                <p style="margin:0; font-size:0.9rem; color:#DDD;">
+                    <b>Correct Answer:</b> <span style="color:#FFD54F;">माण्डूक्योपनिषद् (Māṇḍūkya Upaniṣad - Atharvaveda, Verse 2)</span>.<br>
+                    <b>Four Primary Mahāvākyas:</b><br>
+                    • <i>प्रज्ञानं ब्रह्म</i> (Aitareya - Ṛgveda)<br>
+                    • <i>अहं ब्रह्मास्मि</i> (Bṛhadāraṇyaka - Śukla Yajurveda)<br>
+                    • <i>तत्त्वमसि</i> (Chāndogya - Sāmaveda)<br>
+                    • <b>अयमात्मा ब्रह्म</b> (Māṇḍūkya - Atharvaveda)
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
     else:
         st.markdown("##### ⚡ True / False Lightning Drill")
         tf1 = st.radio("1. Pāṇini's Aṣṭādhyāyī contains approximately 4,000 grammatical sūtras.", ["True (सत्यम्)", "False (असत्यम्)"])
         tf2 = st.radio("2. The Gāyatrī Mantra is addressed to the solar deity Savitṛ in the Ṛgveda.", ["True (सत्यम्)", "False (असत्यम्)"])
         if st.button("Submit Lightning Quiz"):
-            if tf1.startswith("True") and tf2.startswith("True"):
-                st.success("🏆 Both facts are correct! (+30 XP)")
+            is_tf1 = tf1.startswith("True")
+            is_tf2 = tf2.startswith("True")
+            if is_tf1 and is_tf2:
+                st.success("🏆 Both statements are verified as True! (+30 XP)")
                 update_user_xp(st.session_state.user_session_id, 30)
             else:
-                st.warning("Review the history of Sanskrit literature and retry.")
+                st.warning("Review the facts below.")
+                
+            st.markdown(f"""
+            <div class="answer-box">
+                <h4 style="color:#4CAF50; margin:0 0 6px 0;">🔑 Fact Check & Answer Key:</h4>
+                <ul style="margin:0; padding-left:20px; font-size:0.9rem; color:#DDD;">
+                    <li><b>Statement 1:</b> <span style="color:#FFD54F;">True</span> — The Aṣṭādhyāyī contains 3,959 (~4,000) sūtras arranged across 8 chapters. {'✅' if is_tf1 else '❌'}</li>
+                    <li><b>Statement 2:</b> <span style="color:#FFD54F;">True</span> — The Gāyatrī Mantra (tat savitur vareṇyaṃ...) is from Ṛgveda Mandala 3, Sūkta 62, Verse 10, addressed to Savitṛ. {'✅' if is_tf2 else '❌'}</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
