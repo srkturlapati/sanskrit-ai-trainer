@@ -15,10 +15,10 @@ if sys.stdout.encoding != 'utf-8':
 import time
 import io
 import json
+import base64
 import hashlib
+import requests
 
-from google import genai
-from google.genai import types
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
@@ -45,7 +45,7 @@ if "last_audio_hash" not in st.session_state:
 if "selected_tab" not in st.session_state:
     st.session_state.selected_tab = "🗣️ 1. सम्भाषणम्"
 
-# Button Output Caches
+# Button Output Caches (Ensures outputs stay visible on screen)
 if "amara_result" not in st.session_state:
     st.session_state.amara_result = None
 if "shabda_result" not in st.session_state:
@@ -169,26 +169,73 @@ else:
     theme_header = "#7C2D12"
     border_accent = "#F97316"
 
-st.markdown(f"""
+# Base CSS Styles
+st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
     
-    html, body, [class*="css"] {{
+    html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif;
-    }}
+    }
 
-    .stApp {{
-        background: {bg_gradient} !important;
-        background-attachment: fixed !important;
-    }}
-    
-    .main .block-container {{
+    .main .block-container {
         background: transparent !important;
         padding-top: 1.5rem !important;
         padding-bottom: 3rem !important;
         max-width: 1100px !important;
-    }}
+    }
 
+    .quiz-card {
+        background: #FFFFFF !important;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 16px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+    .quiz-correct {
+        background: #ECFDF5 !important;
+        border-left: 6px solid #10B981 !important;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 10px;
+        color: #065F46 !important;
+    }
+    .quiz-wrong {
+        background: #FEF2F2 !important;
+        border-left: 6px solid #EF4444 !important;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 10px;
+        color: #991B1B !important;
+    }
+
+    .card-ai {
+        background: #FFFFFF !important;
+        border-left: 6px solid #4F46E5 !important;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+    }
+    .card-user {
+        background: #DCFCE7 !important;
+        border-left: 6px solid #16A34A !important;
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        color: #14532D !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Dynamic Background & Themes
+st.markdown(f"""
+<style>
+    .stApp {{
+        background: {bg_gradient} !important;
+        background-attachment: fixed !important;
+    }}
     .stRadio [role="radiogroup"] {{
         background: rgba(255, 255, 255, 0.85);
         backdrop-filter: blur(10px);
@@ -208,15 +255,12 @@ st.markdown(f"""
         font-weight: 700;
         color: {theme_dark} !important;
         border: 1px solid rgba(0, 0, 0, 0.08);
-        transition: all 0.2s ease-in-out;
     }}
     .stRadio [role="radiogroup"] label[data-checked="true"] {{
         background: {theme_accent} !important;
         color: #FFFFFF !important;
         border-color: {theme_accent} !important;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
     }}
-
     h1, h2, h3, h4 {{
         color: {theme_header} !important;
         font-weight: 800 !important;
@@ -224,7 +268,6 @@ st.markdown(f"""
     p, span, label {{
         color: {theme_dark} !important;
     }}
-
     .content-box {{
         background: #FFFFFF !important;
         border-left: 6px solid {theme_accent} !important;
@@ -233,51 +276,6 @@ st.markdown(f"""
         margin-top: 14px;
         margin-bottom: 16px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
-        border-top: 1px solid rgba(0,0,0,0.05);
-        border-right: 1px solid rgba(0,0,0,0.05);
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-    }}
-
-    .quiz-card {{
-        background: #FFFFFF !important;
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 16px;
-        padding: 18px 20px;
-        margin-bottom: 18px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-    }}
-    .quiz-correct {{
-        background: #ECFDF5 !important;
-        border-left: 6px solid #10B981 !important;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-top: 10px;
-        color: #065F46 !important;
-    }}
-    .quiz-wrong {{
-        background: #FEF2F2 !important;
-        border-left: 6px solid #EF4444 !important;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-top: 10px;
-        color: #991B1B !important;
-    }}
-
-    .card-ai {{
-        background: #FFFFFF !important;
-        border-left: 6px solid #4F46E5 !important;
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
-    }}
-    .card-user {{
-        background: #DCFCE7 !important;
-        border-left: 6px solid #16A34A !important;
-        border-radius: 16px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        color: #14532D !important;
     }}
     .voice-panel {{
         background: #FFFFFF !important;
@@ -285,7 +283,6 @@ st.markdown(f"""
         border-radius: 18px;
         padding: 16px 22px;
         margin: 16px 0px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -304,42 +301,53 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     except Exception:
         pass
 
-# Robust API Caller with types.Part and Unicode encoding safety
-def call_gemini_safe(client, contents, system_instruction=""):
-    last_err = None
-    
-    if isinstance(contents, str):
-        payload = [types.Part.from_text(text=contents)]
-    elif isinstance(contents, list):
-        payload = []
-        for item in contents:
-            if isinstance(item, str):
-                payload.append(types.Part.from_text(text=item))
-            else:
-                payload.append(item)
-    else:
-        payload = contents
+# ==============================================================================
+# ROBUST UTF-8 GEMINI API CALLER (PERMANENTLY FIXES ASCII CODEC ERRORS)
+# ==============================================================================
+def call_gemini_api(key_val, parts_payload, system_inst=""):
+    if not key_val:
+        return None, "Please enter your Gemini API key in the sidebar."
+
+    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key_val}"
+    headers = {"Content-Type": "application/json; charset=utf-8"}
+
+    req_body = {
+        "contents": [{"parts": parts_payload}],
+        "generationConfig": {"temperature": 0.2}
+    }
+    if system_inst:
+        req_body["systemInstruction"] = {"parts": [{"text": system_inst}]}
+
+    # Explicit UTF-8 byte serialization prevents Python's http.client from touching ASCII
+    raw_payload_bytes = json.dumps(req_body, ensure_ascii=False).encode("utf-8")
 
     for attempt in range(4):
         try:
-            config = types.GenerateContentConfig(
-                temperature=0.2,
-                system_instruction=system_instruction if system_instruction else None
-            )
-            resp = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=payload,
-                config=config
-            )
-            return resp.text, None
-        except Exception as e:
-            last_err = str(e)
-            if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
+            resp = requests.post(endpoint, headers=headers, data=raw_payload_bytes, timeout=45)
+            if resp.status_code == 200:
+                data = resp.json()
+                cands = data.get("candidates", [])
+                if cands:
+                    parts = cands[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", ""), None
+                return "", None
+            elif resp.status_code == 429:
                 time.sleep(3 * (attempt + 1))
                 continue
-            return None, last_err
-            
-    return None, f"Rate limit reached. Please wait a few moments before retrying. ({last_err})"
+            else:
+                try:
+                    err_json = resp.json().get("error", {})
+                    msg = err_json.get("message", f"HTTP {resp.status_code}")
+                except Exception:
+                    msg = resp.text
+                return None, f"API Error ({resp.status_code}): {msg}"
+        except Exception as e:
+            if attempt == 3:
+                return None, str(e)
+            time.sleep(2)
+
+    return None, "Rate limit reached. Please wait a few moments before retrying."
 
 # Fallback Scriptural Question Bank for Tab 6
 FALLBACK_QUESTIONS = {
@@ -354,25 +362,25 @@ FALLBACK_QUESTIONS = {
             "question": "ऋग्वेदस्य प्रमुखः देवता कः? (Who is the most frequently addressed deity in Rigveda?)",
             "options": ["A) इन्द्रः (Indra)", "B) सूर्यः (Surya)", "C) वरुणः (Varuna)", "D) सोमः (Soma)"],
             "correct_idx": 0,
-            "ref": "ऋग्वेदे इन्द्रस्य स्तुतयः सर्वाधिकेषु सूक्तेषु (प्रायः २५० सूक्तेषु) प्राप्यन्ते।"
+            "ref": "ऋग्वेदे इन्द्रस्य स्तुतयः सर्वाधिकेषु सूक्तेषु प्राप्यन्ते।"
         },
         {
             "question": "गायत्रीमन्त्रः कस्मिन् वेदे वर्तते? (In which Veda is the Gayatri Mantra found?)",
             "options": ["A) सामवेदे", "B) यजुर्वेदे", "C) ऋग्वेदे (तृतीयमण्डले)", "D) अथर्ववेदे"],
             "correct_idx": 2,
-            "ref": "गायत्रीमन्त्रः ऋग्वेदस्य तृतीयमण्डलस्य ६२ तमे सूक्ते (३.६२.१०) वर्तते।"
+            "ref": "गायत्रीमन्त्रः ऋग्वेदस्य तृतीयमण्डलस्य ६२ तमे सूक्ते वर्तते।"
         }
     ],
     "Śrīmad Vālmīki Rāmāyaṇa": [
         {
             "question": "वाल्मीकि-रामायणे कति काण्डानि सन्ति? (How many Kandas in Valmiki Ramayana?)",
-            "options": ["A) ५ काण्डानि", "B) ६ काण्डानि", "C) ७ काण्डानि (बाल, अयोध्या, आरण्य, किष्किन्धा, सुन्दर, युद्ध, उत्तर)", "D) ८ काण्डानि"],
+            "options": ["A) ५ काण्डानि", "B) ६ काण्डानि", "C) ७ काण्डानि", "D) ८ काण्डानि"],
             "correct_idx": 2,
             "ref": "वाल्मीकिरामायणे बालकाण्डादारभ्य उत्तरकाण्डपर्यन्तं सप्त काण्डानि सन्ति।"
         },
         {
             "question": "रामायणस्य प्रथमः श्लोकः कः? (Which is the first shloka uttered by Valmiki?)",
-            "options": ["A) मा निषाद प्रतिष्ठां त्वमगमः शाश्वतीः समाः...", "B) यदा यदा हि धर्मस्य...", "C) सत्यमेव जयते नानृतम्...", "D) वागर्थाविव सम्पृक्तौ..."],
+            "options": ["A) मा निषाद प्रतिष्ठां त्वमगमः...", "B) यदा यदा हि धर्मस्य...", "C) सत्यमेव जयते...", "D) वागर्थाविव सम्पृक्तौ..."],
             "correct_idx": 0,
             "ref": "क्रौञ्चवधदर्शनेन महर्षेः वाल्मीकेः मुखात् 'मा निषाद प्रतिष्ठां त्वमगमः...' इति श्लोकः निःसृतः।"
         },
@@ -380,7 +388,7 @@ FALLBACK_QUESTIONS = {
             "question": "हनूमान् सीतायाः अन्वेषणं कस्मिन् काण्डे कृतवान्? (In which Kanda does Hanuman find Sita?)",
             "options": ["A) किष्किन्धाकाण्डे", "B) सुन्दरकाण्डे", "C) युद्धकाण्डे", "D) आरण्यकाण्डे"],
             "correct_idx": 1,
-            "ref": "सुन्दरकाण्डे हनूमतः समुद्रलङ्घनं तथा लङ्कायां सीतादर्शनं वर्णितम्।"
+            "ref": "सुन्दरकाण्डे हनूमतः समुद्रलङ्घनं तथा सीतादर्शनं वर्णितम्।"
         }
     ],
     "Mahābhārata & Bhagavad Gītā": [
@@ -388,7 +396,7 @@ FALLBACK_QUESTIONS = {
             "question": "भगवद्गीता महाभारते कस्मिन् पर्वे वर्तते? (In which Parva of Mahabharata is Gita found?)",
             "options": ["A) वनपर्वे", "B) भीष्मपर्वे (अध्यायाः २५-४२)", "C) उद्योगपर्वे", "D) शान्तिपर्वे"],
             "correct_idx": 1,
-            "ref": "श्रीमद्भगवद्गीता महाभारतस्य भीष्मपर्वणि २५ तमाध्यायात् ४२ तमाध्यायपर्यन्तं वर्तते।"
+            "ref": "श्रीमद्भगवद्गीता महाभारतस्य भीष्मपर्वणि वर्तते।"
         },
         {
             "question": "भगवद्गीतायां कति अध्यायाः, कति श्लोकाः च सन्ति? (How many chapters and verses in Gita?)",
@@ -397,10 +405,10 @@ FALLBACK_QUESTIONS = {
             "ref": "भगवद्गीता अष्टादशाध्यायात्मिका (18 Chapters) सप्तशतश्लोकात्मिका (700 Slokas) च वर्तते।"
         },
         {
-            "question": "'कर्मण्येवाधिकारस्ते मा फलेषु कदाचन' इति श्लोकः कस्य अध्यायस्य? (In which chapter is this verse?)",
-            "options": ["A) प्रथमाध्यायस्य", "B) द्वितीयाध्यायस्य (सांख्ययोगः, श्लोकः ४७)", "C) तृतीयाध्यायस्य", "D) चतुर्थाध्यायस्य"],
+            "question": "'कर्मण्येवाधिकारस्ते मा फलेषु कदाचन' इति श्लोकः कस्य अध्यायस्य?",
+            "options": ["A) प्रथमाध्यायस्य", "B) द्वितीयाध्यायस्य (२.४७)", "C) तृतीयाध्यायस्य", "D) चतुर्थाध्यायस्य"],
             "correct_idx": 1,
-            "ref": "एषः प्रसिद्धः श्लोकः गीतायाः द्वितीयाध्याये (२.४७) निष्कामकर्मयोगस्य उपदेशे वर्तते।"
+            "ref": "एषः श्लोकः गीतायाः द्वितीयाध्याये निष्कामकर्मयोगस्य उपदेशे वर्तते।"
         }
     ],
     "Principal Upaniṣads": [
@@ -411,13 +419,13 @@ FALLBACK_QUESTIONS = {
             "ref": "'सत्यमेव जयते नानृतम्' इति मन्त्रभागः मुण्डकोपनिषदः तृतीयमुण्डके वर्तते।"
         },
         {
-            "question": "नचिकेतसः यमस्य च सम्वादः कस्मिन् उपनिषदि अस्ति? (Dialogue between Nachiketa and Yama?)",
+            "question": "नचिकेतसः यमस्य च सम्वादः कस्मिन् उपनिषदि अस्ति?",
             "options": ["A) कठोपनिषदि", "B) प्रश्नोपनिषदि", "C) छान्दोग्योपनिषदि", "D) माण्डूक्योपनिषदि"],
             "correct_idx": 0,
             "ref": "कठोपनिषदि यम-नचिकेतसोः आत्मतत्त्वविषयकः सम्वादः वर्णितः अस्ति।"
         },
         {
-            "question": "कति मुख्याः उपनिषदः शङ्कराचार्यैः भाष्यकृताः? (How many principal Upanishads commented by Shankara?)",
+            "question": "कति मुख्याः उपनिषदः शङ्कराचार्यैः भाष्यकृताः?",
             "options": ["A) अष्टौ (8)", "B) दश (10)", "C) द्वादश (12)", "D) अष्टादश (18)"],
             "correct_idx": 1,
             "ref": "श्रीमदाद्यशङ्कराचार्यैः ईशादि-दशोपनिषत्सु प्रमुखतया भाष्यं रचितम्।"
@@ -426,19 +434,19 @@ FALLBACK_QUESTIONS = {
     "Vedāṅgas": [
         {
             "question": "वेदाङ्गानि कति सन्ति? (How many Vedangas are there?)",
-            "options": ["A) चत्वारि (4)", "B) पञ्च (5)", "C) षट् (6 - शिक्षा, कल्प, व्याकरण, निरुक्त, छन्दस्, ज्योतिष)", "D) अष्ट (8)"],
+            "options": ["A) चत्वारि (4)", "B) पञ्च (5)", "C) षट् (6)", "D) अष्ट (8)"],
             "correct_idx": 2,
             "ref": "वेदाङ्गानि षट् - शिक्षा, कल्पः, व्याकरणम्, निरुक्तम्, छन्दः, ज्योतिषम्।"
         },
         {
-            "question": "'छन्दः पादौ तु वेदस्य...' - व्याकरणं किं स्मृतम्? (Grammar is considered what organ of Veda?)",
+            "question": "'छन्दः पादौ तु वेदस्य...' - व्याकरणं किं स्मृतम्?",
             "options": ["A) नेत्रम्", "B) मुखं व्याकरणं स्मृतम् (Mouth / Face)", "C) नासिका", "D) श्रोत्रम्"],
             "correct_idx": 1,
-            "ref": "'मुखं व्याकरणं स्मृतम्' - पाणिनीयशिक्षायां व्याकरणं वेदपुरुषस्य मुखत्वेन प्रतिपादितम्।"
+            "ref": "'मुखं व्याकरणं स्मृतम्' - व्याकरणं वेदपुरुषस्य मुखत्वेन प्रतिपादितम्।"
         },
         {
-            "question": "वैदिकपदानां व्युत्पत्तिः अर्थनिर्वचनं च कस्मिन् अङ्गे क्रियते? (Etymology of Vedic words?)",
-            "options": ["A) निरुक्ते (यास्काचार्यस्य निरुक्तम्)", "B) कल्पे", "C) ज्योतिषे", "D) शिक्षायाम्"],
+            "question": "वैदिकपदानां व्युत्पत्तिः अर्थनिर्वचनं च कस्मिन् अङ्गे क्रियते?",
+            "options": ["A) निरुक्ते (यास्काचार्यस्य)", "B) कल्पे", "C) ज्योतिषे", "D) शिक्षायाम्"],
             "correct_idx": 0,
             "ref": "यास्कप्रणीते निरुक्ते वैदिकपदानां निर्वचनं व्युत्पत्तिश्च प्रतिपादिता।"
         }
@@ -459,7 +467,7 @@ if "सम्भाषणम्" in selected_tab:
         horizontal=True,
         key="sub_mode_talkpal"
     )
-    
+
     if tp_mode != st.session_state.tp_mode:
         st.session_state.talkpal_history = []
         st.session_state.last_audio_hash = ""
@@ -512,19 +520,16 @@ if "सम्भाषणम्" in selected_tab:
             if not api_key:
                 st.warning("⚠️ Enter your Gemini API key in the sidebar.")
             else:
-                client = genai.Client(api_key=api_key)
                 st.session_state.talkpal_history.append({"role": "user", "content": "🎙️ *[Spoken Voice Response]*"})
                 st.session_state.xp += 15
 
                 with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
-                    audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
-                    prompt_part = types.Part.from_text(text="Listen to this spoken Sanskrit, transcribe what was said, reply in Sanskrit with translation, and provide grammatical feedback.")
-                    
-                    reply, err = call_gemini_safe(
-                        client=client,
-                        contents=[audio_part, prompt_part],
-                        system_instruction=sys_talkpal
-                    )
+                    b64_audio = base64.b64encode(audio_bytes).decode("ascii")
+                    parts = [
+                        {"inlineData": {"mimeType": "audio/wav", "data": b64_audio}},
+                        {"text": "Listen to this spoken Sanskrit, transcribe what was said, reply in Sanskrit with translation, and provide grammatical feedback."}
+                    ]
+                    reply, err = call_gemini_api(api_key, parts, sys_talkpal)
                     if reply:
                         st.session_state.talkpal_history.append({"role": "model", "content": reply})
                         st.rerun()
@@ -535,7 +540,6 @@ if "सम्भाषणम्" in selected_tab:
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in the sidebar.")
         else:
-            client = genai.Client(api_key=api_key)
             is_dev = any("\u0900" <= char <= "\u097f" for char in text_input)
             if not is_dev:
                 try:
@@ -548,12 +552,13 @@ if "सम्भाषणम्" in selected_tab:
 
             st.session_state.talkpal_history.append({"role": "user", "content": user_text})
             st.session_state.xp += 5
-            
+
             chat_contents = [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.talkpal_history]
             chat_contents.append(f"USER: {user_text}")
 
             with st.spinner("आचार्यः लिखति..."):
-                reply, err = call_gemini_safe(client, "\n\n".join(chat_contents), sys_talkpal)
+                parts = [{"text": "\n\n".join(chat_contents)}]
+                reply, err = call_gemini_api(api_key, parts, sys_talkpal)
                 if reply:
                     st.session_state.talkpal_history.append({"role": "model", "content": reply})
                     st.rerun()
@@ -562,7 +567,7 @@ if "सम्भाषणम्" in selected_tab:
 
 
 # ==============================================================================
-# TAB 2: अमरकोशः (5 COMPREHENSIVE TOOLS)
+# TAB 2: अमरकोशः (ALL 5 INTERACTIVE TOOLS FULLY IMPLEMENTED)
 # ==============================================================================
 elif "अमरकोशः" in selected_tab:
     st.subheader("📖 नामलिङ्गानुशासनम् (अमरकोश-मञ्जूषा)")
@@ -594,22 +599,20 @@ elif "अमरकोशः" in selected_tab:
         elif not amara_query.strip():
             st.warning("⚠️ Please enter a word to search.")
         else:
-            client = genai.Client(api_key=api_key)
             with st.spinner("अमरकोशे अन्वेषणं प्रचलति..."):
-                
                 if "श्लोकान्वेषणम्" in amara_tool:
                     prompt_amara = (
-                        "You are a master scholar of Amarasimha's Amarakoṣa (नामलिङ्गानुशासनम्).\n"
+                        "You are an authoritative scholar of Amarasimha's Amarakoṣa (नामलिङ्गानुशासनम्).\n"
                         f"Search Word: {amara_query}\n"
                         f"Scope: {kanda_choice}\n\n"
                         f"Find the exact verse(s) where '{amara_query}' is defined.\n"
                         "Format:\n"
                         "### 📜 अमरकोश-मूलश्लोकः (Authentic Verse):\n"
-                        "[Provide full Amarakoṣa Devanagari verse mentioning the query]\n\n"
+                        "Quote the exact Amarakoṣa Devanagari verse defining this word.\n\n"
                         "### 🔍 पदच्छेदः एवं काण्डनिर्देशः:\n"
-                        "- काण्डम् एवं वर्गः: e.g. प्रथमकाण्डे स्वर्गवर्गे\n"
-                        "- अन्वयार्थः (Meaning): Clear explanation in Sanskrit and English.\n"
-                        "- समानार्थकाः शब्दाः (Words in this verse): Bullet points with genders."
+                        "- **काण्डम् एवं वर्गः**: (e.g. प्रथमकाण्डे स्वर्गवर्गे)\n"
+                        "- **अन्वयार्थः (Meaning)**: Clear explanation in Sanskrit and English.\n"
+                        "- **समानार्थकाः शब्दाः (Words in this verse)**: Bullet list with genders."
                     )
 
                 elif "पर्यायपदानि" in amara_tool:
@@ -619,7 +622,7 @@ elif "अमरकोशः" in selected_tab:
                         f"### 💎 अमरकोशोक्ताः पर्यायाः (Synonyms for {amara_query}):\n"
                         "| क्र.सं. | संस्कृत-पदम् | IAST | लिङ्गम् (Gender) | आङ्ग्लार्थः (English Meaning) |\n"
                         "|---|---|---|---|---|\n"
-                        "(List 6 to 10 authentic synonyms from Amarakoṣa)\n\n"
+                        "(Provide 6 to 10 authentic synonyms from Amarakoṣa)\n\n"
                         "### 🏷️ काण्डम् एवं वर्गनिर्देशः:\n"
                         "- State the exact Kāṇḍa and Varga where these appear."
                     )
@@ -656,7 +659,7 @@ elif "अमरकोशः" in selected_tab:
                         "- 4 ➔ <Letter> (<Explanation>)"
                     )
 
-                else:
+                else:  # Odd One Out
                     prompt_amara = (
                         f"Create 3 'Odd One Out' (विजातीयपद-चयनम्) challenges based on Amarakoṣa for the theme: '{amara_query}'.\n"
                         "In each question, provide 4 Sanskrit words where 3 are synonyms in the same Varga of Amarakoṣa, and 1 belongs to a completely different entity or Varga.\n\n"
@@ -671,7 +674,7 @@ elif "अमरकोशः" in selected_tab:
                         "---"
                     )
 
-                resp, err = call_gemini_safe(client, prompt_amara)
+                resp, err = call_gemini_api(api_key, [{"text": prompt_amara}])
                 if resp:
                     st.session_state.amara_result = resp
                     st.session_state.xp += 15
@@ -701,14 +704,13 @@ elif "शब्द-धातुरूपाणि" in selected_tab:
             elif not shabda_in.strip():
                 st.warning("⚠️ Please enter a noun.")
             else:
-                client = genai.Client(api_key=api_key)
                 with st.spinner("Generating declension table..."):
                     p = (
                         f"Generate full 8 Vibhakti table for Sanskrit noun '{shabda_in}'.\n"
                         "Format as Markdown Table with columns:\n"
                         "| विभक्तिः (Case) | एकवचनम् (Singular) | द्विवचनम् (Dual) | बहुवचनम् (Plural) | English Meaning |"
                     )
-                    resp, err = call_gemini_safe(client, p)
+                    resp, err = call_gemini_api(api_key, [{"text": p}])
                     if resp:
                         st.session_state.shabda_result = resp
                     else:
@@ -722,21 +724,20 @@ elif "शब्द-धातुरूपाणि" in selected_tab:
     elif rupa_type == "⚡ Dhaturoopa (Verb Conjugation)":
         dhatu_in = st.text_input("Enter Root / Dhātu (e.g., गम्, भू, पठ्, कृ, स्था):", value="गम्", key="inp_dhatu_root")
         lakara_in = st.selectbox("Select Lakāra / Tense:", ["लट् (Present - वर्तमाने)", "लङ् (Past - अनद्यतने भूते)", "लृट् (Future - भविष्यति)", "लोट् (Imperative - आज्ञायाम्)", "विधिलिङ् (Optative)"], key="sel_dhatu_lakara")
-        
+
         if st.button("Generate Lakāra Conjugation", key="btn_gen_dhatu"):
             if not api_key:
                 st.warning("⚠️ Enter Gemini API key in sidebar.")
             elif not dhatu_in.strip():
                 st.warning("⚠️ Please enter a verb root.")
             else:
-                client = genai.Client(api_key=api_key)
                 with st.spinner("Generating conjugation table..."):
                     p = (
                         f"Generate conjugation table for Dhatu '{dhatu_in}' in '{lakara_in}'.\n"
                         "Format as Markdown Table:\n"
                         "| पुरुषः (Person) | एकवचनम् | द्विवचनम् | बहुवचनम् | English Meaning |"
                     )
-                    resp, err = call_gemini_safe(client, p)
+                    resp, err = call_gemini_api(api_key, [{"text": p}])
                     if resp:
                         st.session_state.dhatu_result = resp
                     else:
@@ -753,10 +754,9 @@ elif "शब्द-धातुरूपाणि" in selected_tab:
             if not api_key:
                 st.warning("⚠️ Enter Gemini API key in sidebar.")
             else:
-                client = genai.Client(api_key=api_key)
                 with st.spinner("Generating challenge..."):
                     p = "Provide a Sanskrit form challenge (e.g. रामेभ्यः). Ask student to identify Pratipadika, Vibhakti, Vacana with 4 MCQ options and spoiler answer with Paninian explanation."
-                    resp, err = call_gemini_safe(client, p)
+                    resp, err = call_gemini_api(api_key, [{"text": p}])
                     if resp:
                         st.session_state.rupa_drill_result = resp
                     else:
@@ -784,7 +784,6 @@ elif "छन्दःशास्त्रम्" in selected_tab:
         elif not user_sloka.strip():
             st.warning("⚠️ Please enter a verse to analyze.")
         else:
-            client = genai.Client(api_key=api_key)
             with st.spinner("Analyzing meter..."):
                 prompt_chandas = (
                     f"Analyze this Sanskrit verse under Pingala's Chandaḥ-śāstra:\n{user_sloka}\n\n"
@@ -793,7 +792,7 @@ elif "छन्दःशास्त्रम्" in selected_tab:
                     "2. Definition rule (लक्षणम्)\n"
                     "3. Laghu-Guru breakdown (ल-ग) and Gaṇa analysis for each quarter (पाद)."
                 )
-                resp, err = call_gemini_safe(client, prompt_chandas)
+                resp, err = call_gemini_api(api_key, [{"text": prompt_chandas}])
                 if resp:
                     st.session_state.chandas_result = resp
                     st.session_state.xp += 15
@@ -814,7 +813,7 @@ elif "सर्वभाषा-अनुवादकः" in selected_tab:
     st.caption("Complete bidirectional translation across Indian languages & Sanskrit with full Padaccheda.")
 
     t_dir = st.radio("Direction", ["Indian Language / English ➔ Sanskrit", "Sanskrit ➔ Indian Language / English"], horizontal=True, key="sel_trans_dir")
-    
+
     dest_lang = "English"
     if "Sanskrit ➔" in t_dir:
         dest_lang = st.selectbox("Select Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"], key="sel_trans_target_lang")
@@ -827,7 +826,6 @@ elif "सर्वभाषा-अनुवादकः" in selected_tab:
         elif not trans_in.strip():
             st.warning("⚠️ Please enter text to translate.")
         else:
-            client = genai.Client(api_key=api_key)
             with st.spinner("Translating..."):
                 if "➔ Sanskrit" in t_dir:
                     p = (
@@ -845,7 +843,7 @@ elif "सर्वभाषा-अनुवादकः" in selected_tab:
                 else:
                     p = f"Translate this Sanskrit into {dest_lang} and English with Sandhi splits and word-by-word meanings.\n\nInput: {trans_in}"
 
-                resp, err = call_gemini_safe(client, p)
+                resp, err = call_gemini_api(api_key, [{"text": p}])
                 if resp:
                     st.session_state.trans_result = resp
                     st.session_state.xp += 10
@@ -885,7 +883,6 @@ else:
 
         new_questions = None
         if api_key:
-            client = genai.Client(api_key=api_key)
             with st.spinner("Generating fresh questions from authentic scriptures..."):
                 prompt_json = (
                     "You are an authentic Vedic and Sanatana Dharma Acharya.\n"
@@ -901,8 +898,8 @@ else:
                     "]\n"
                     "DO NOT wrap with markdown syntax or explanations. Output pure JSON only."
                 )
-                
-                resp, err = call_gemini_safe(client, prompt_json)
+
+                resp, err = call_gemini_api(api_key, [{"text": prompt_json}])
                 if resp:
                     try:
                         clean_json = resp.strip()
@@ -914,7 +911,7 @@ else:
 
         if not new_questions:
             new_questions = FALLBACK_QUESTIONS.get(vedic_topic, FALLBACK_QUESTIONS["The 4 Vedas & Samhitas"])
-        
+
         st.session_state.interactive_quiz_questions = new_questions
         st.rerun()
 
@@ -943,17 +940,17 @@ else:
         if submit_quiz:
             st.session_state.quiz_submitted = True
             correct_count = 0
-            
+
             st.markdown("### 📊 परीक्षा-परिणामः (Quiz Results):")
-            
+
             for i, q in enumerate(st.session_state.interactive_quiz_questions):
                 selected_str = user_choices[i]
                 correct_str = q["options"][q["correct_idx"]]
                 is_correct = (selected_str == correct_str)
-                
+
                 st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
                 st.markdown(f"**प्रश्नः {i+1} : {q['question']}**")
-                
+
                 if is_correct:
                     correct_count += 1
                     st.markdown(f"""
@@ -977,7 +974,7 @@ else:
             earned_xp = correct_count * 15
             st.session_state.xp += earned_xp
             st.session_state.quiz_score = correct_count
-            
+
             if correct_count == len(st.session_state.interactive_quiz_questions):
                 st.success(f"🎉 **अतीव उत्तमम्! Full Score:** {correct_count}/3 Correct! (+{earned_xp} XP)")
                 st.balloons()
