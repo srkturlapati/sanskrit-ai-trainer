@@ -118,7 +118,7 @@ tab_options = [
     "🧩 3. शब्द-धातुरूपाणि",
     "🎵 4. छन्दःशास्त्रम्",
     "🌐 5. सर्वभाषा-अनुवादकः",
-    "🏹 6. ज्ञान-परीक्षा"
+    "🎓 6. SLPT परीक्षा"
 ]
 
 selected_tab = st.radio(
@@ -861,122 +861,117 @@ elif "सर्वभाषा-अनुवादकः" in selected_tab:
 
 
 # ==============================================================================
-# TAB 6: ज्ञान-परीक्षा (INTERACTIVE EVALUATION WITH PASS/FAIL MARKS)
+# TAB 6: SLPT STANDARDIZED EXAMINATION DASHBOARD
 # ==============================================================================
 else:
-    st.subheader("🏹 सनातन-ज्ञान-परीक्षा (Vedic & Epics Quiz)")
-    st.caption("Interactive challenges on the Vedas, Rāmāyaṇa, Mahābhārata, Upaniṣads, and Bhagavad Gītā with instant grading.")
+    st.subheader("🎓 Sanskrit Language Proficiency Test (SLPT)")
+    st.caption("A standardized four-skill examination workspace — Reading, Listening, Speaking, and Writing.")
 
-    col_q1, col_q2 = st.columns([1, 1])
-    with col_q1:
-        vedic_topic = st.selectbox(
-            "Select Scripture / शास्त्र-विभागः:",
-            ["The 4 Vedas & Samhitas", "Śrīmad Vālmīki Rāmāyaṇa", "Mahābhārata & Bhagavad Gītā", "Principal Upaniṣads", "Vedāṅgas"],
-            key="sel_vedic_topic"
-        )
-    with col_q2:
-        diff_tier = st.selectbox("Difficulty Tier:", ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"], key="sel_vedic_tier")
+    # The active test is deliberately held in session state here. In production this
+    # object maps to a server-side test_attempt record and answers are autosaved.
+    if "slpt_module" not in st.session_state:
+        st.session_state.slpt_module = "📖 Reading"
+    if "slpt_answers" not in st.session_state:
+        st.session_state.slpt_answers = {}
+    if "slpt_started_at" not in st.session_state:
+        st.session_state.slpt_started_at = time.time()
+    if "slpt_writing_script" not in st.session_state:
+        st.session_state.slpt_writing_script = "देवनागरी"
 
-    if st.button("⚡ Generate 3-Question Challenge / नूतन-प्रश्नावली", key="btn_gen_vedic_quiz"):
-        st.session_state.quiz_submitted = False
-        st.session_state.interactive_quiz_questions = None
+    elapsed = int(time.time() - st.session_state.slpt_started_at)
+    remaining = max(0, 20 * 60 - elapsed)
+    mins, secs = divmod(remaining, 60)
+    answered = len(st.session_state.slpt_answers)
 
-        new_questions = None
-        if api_key:
-            with st.spinner("Generating fresh questions from authentic scriptures..."):
-                prompt_json = (
-                    "You are an authentic Vedic and Sanatana Dharma Acharya.\n"
-                    f"Generate 3 challenging multiple-choice questions on '{vedic_topic}' for level '{diff_tier}'.\n\n"
-                    "Return ONLY a valid JSON list of 3 objects with exact keys:\n"
-                    "[\n"
-                    "  {\n"
-                    '    "question": "<Question in Devanagari Sanskrit with English in parentheses>",\n'
-                    '    "options": ["A) <Option 1>", "B) <Option 2>", "C) <Option 3>", "D) <Option 4>"],\n'
-                    '    "correct_idx": 0,\n'
-                    '    "ref": "<Authentic scriptural reference and explanation in Sanskrit/English>"\n'
-                    "  }\n"
-                    "]\n"
-                    "DO NOT wrap with markdown syntax or explanations. Output pure JSON only."
-                )
+    top_left, top_mid, top_right = st.columns([2, 1, 1])
+    with top_left:
+        st.markdown("#### Practice Test • Intermediate / मध्यमा")
+        st.caption("Attempt ID: SLPT-DEMO-001 • Answers are saved in this session.")
+    with top_mid:
+        st.metric("Progress", f"{answered}/5", "autosaved")
+    with top_right:
+        st.metric("Time remaining", f"{mins:02d}:{secs:02d}", "Reading section")
 
-                resp, err = call_gemini_api(api_key, [{"text": prompt_json}])
-                if resp:
-                    try:
-                        clean_json = resp.strip()
-                        if clean_json.startswith("```"):
-                            clean_json = clean_json.split("\n", 1)[1].rsplit("\n", 1)[0]
-                        new_questions = json.loads(clean_json)
-                    except Exception:
-                        new_questions = None
+    module = st.radio(
+        "Exam module",
+        ["📖 Reading", "🎧 Listening", "🎙️ Speaking", "✍️ Writing"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="slpt_module",
+    )
 
-        if not new_questions:
-            new_questions = FALLBACK_QUESTIONS.get(vedic_topic, FALLBACK_QUESTIONS["The 4 Vedas & Samhitas"])
+    if module == "📖 Reading":
+        st.markdown("### Reading / पठनम्")
+        st.caption("Read both representations of the passage, then select the best answer for every question.")
+        passage_col, question_col = st.columns([1.08, 1], gap="large")
+        with passage_col:
+            st.markdown('<div class="content-box">', unsafe_allow_html=True)
+            st.markdown("#### अनुच्छेदः / Passage")
+            st.markdown("""<div style="font-family:'Noto Sans Devanagari', sans-serif; font-size:1.25rem; line-height:2.05;">
+            ग्रामस्य समीपे एकः विशालः उद्यानः अस्ति। प्रतिदिनं बालकाः तत्र क्रीडितुं गच्छन्ति।
+            उद्याने बहवः वृक्षाः सन्ति, ते छायां फलानि च ददति। रविवासरे ग्रामवासिनः मिलित्वा
+            उद्यानं स्वच्छं कुर्वन्ति। तस्मात् सर्वे जनाः प्रसन्नाः भवन्ति।</div>""", unsafe_allow_html=True)
+            st.markdown("**IAST:** *Grāmasya samīpe ekaḥ viśālaḥ udyānaḥ asti. Pratidinaṁ bālakāḥ tatra krīḍituṁ gacchanti. Udyāne bahavaḥ vṛkṣāḥ santi, te chāyāṁ phalāni ca dadati.*")
+            st.info("Accessibility: Devanagari is paired with IAST; use the browser zoom controls for a comfortable reading size.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        with question_col:
+            st.markdown("#### Questions / प्रश्नाः")
+            reading_questions = [
+                ("r1", "बालकाः कुत्र गच्छन्ति?", ["विद्यालयम्", "उद्यानम्", "आपणम्", "नदीम्"]),
+                ("r2", "वृक्षाः किं ददति?", ["जलम्", "छायां फलानि च", "गृहाणि", "पुस्तकानि"]),
+                ("r3", "‘मिलित्वा’ इत्यस्य समीचीनः अर्थः कः?", ["alone", "together", "quickly", "tomorrow"]),
+            ]
+            for key, prompt, options in reading_questions:
+                choice = st.radio(prompt, options, index=None, key=f"slpt_{key}")
+                if choice:
+                    st.session_state.slpt_answers[key] = choice
+            def move_to_listening():
+                st.session_state.slpt_module = "🎧 Listening"
 
-        st.session_state.interactive_quiz_questions = new_questions
-        st.rerun()
+            st.button("Save & continue to Listening →", type="primary", key="slpt_reading_next", on_click=move_to_listening)
 
-    # RENDER INTERACTIVE QUIZ FORM IF QUESTIONS ARE LOADED
-    if st.session_state.interactive_quiz_questions:
-        st.write("---")
-        st.markdown("#### 📝 **अधस्तन-प्रश्नानाम् उत्तराणि चिनोतु (Choose Your Answers):**")
+    elif module == "🎧 Listening":
+        st.markdown("### Listening / श्रवणम्")
+        st.caption("Listen once or twice, then answer from what you heard. The production assessment should serve signed audio URLs from object storage.")
+        st.markdown('<div class="voice-panel">', unsafe_allow_html=True)
+        st.markdown("**Audio prompt:** A short modern spoken-Sanskrit announcement.")
+        if st.button("▶ Generate practice audio", key="slpt_play_listening"):
+            play_sanskrit_audio("अद्य विद्यालये संस्कृत-सम्भाषण-शिविरम् भविष्यति। छात्राः दशवादने आगच्छन्तु।", slow_mode=is_slow)
+        st.markdown('</div>', unsafe_allow_html=True)
+        answer = st.radio("कार्यक्रमः कदा भविष्यति?", ["प्रातः दशवादने", "सायं सप्तवादने", "ह्यः", "रविवासरे"], index=None, key="slpt_l1")
+        if answer:
+            st.session_state.slpt_answers["l1"] = answer
+        st.caption("Auto-grading rule: compare the submitted option ID, never the rendered option text, with the server-side answer key.")
 
-        user_choices = []
-        with st.form("interactive_quiz_form"):
-            for i, q in enumerate(st.session_state.interactive_quiz_questions):
-                st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
-                st.markdown(f"**प्रश्नः {i+1} : {q['question']}**")
-                choice = st.radio(
-                    label=f"q_{i}",
-                    options=q["options"],
-                    index=0,
-                    key=f"user_choice_{i}",
-                    label_visibility="collapsed"
-                )
-                user_choices.append(choice)
-                st.markdown('</div>', unsafe_allow_html=True)
+    elif module == "🎙️ Speaking":
+        st.markdown("### Speaking / भाषणम्")
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown("**Independent task (45 seconds):** *भवतः/भवत्याः प्रियं स्थानं वर्णयत। किं कारणात् तत् स्थानं रोचते?*  ")
+        st.caption("Describe a place you like and explain why you like it. Aim for a clear opening, two details, and a conclusion.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        speaking_audio = st.audio_input("Record your Sanskrit response", key="slpt_speaking_audio")
+        if speaking_audio:
+            st.success("Recording captured. In production, upload this blob directly to a short-lived S3 URL, then enqueue AI scoring.")
+        st.info("AI scoring blueprint: transcription → pronunciation/fluency signals → rubric-based response evaluation → human-review queue for low-confidence outcomes.")
 
-            submit_quiz = st.form_submit_button("🏁 Submit Answers / उत्तरं समर्पयतु")
-
-        if submit_quiz:
-            st.session_state.quiz_submitted = True
-            correct_count = 0
-
-            st.markdown("### 📊 परीक्षा-परिणामः (Quiz Results):")
-
-            for i, q in enumerate(st.session_state.interactive_quiz_questions):
-                selected_str = user_choices[i]
-                correct_str = q["options"][q["correct_idx"]]
-                is_correct = (selected_str == correct_str)
-
-                st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
-                st.markdown(f"**प्रश्नः {i+1} : {q['question']}**")
-
-                if is_correct:
-                    correct_count += 1
-                    st.markdown(f"""
-                    <div class="quiz-correct">
-                        ✅ <strong>सम्यक् उत्तरम्! (Correct Answer)</strong><br>
-                        <strong>भवतः उत्तरम् (Your Choice):</strong> {selected_str}<br>
-                        📜 <strong>प्रमाणम् (Scriptural Reference):</strong> {q['ref']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="quiz-wrong">
-                        ❌ <strong>अशुद्धम् (Incorrect)</strong><br>
-                        <strong>भवतः उत्तरम् (Your Choice):</strong> {selected_str}<br>
-                        🎯 <strong>शुद्धम् उत्तरम् (Correct Answer):</strong> {correct_str}<br>
-                        📜 <strong>प्रमाणम् (Scriptural Reference):</strong> {q['ref']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            earned_xp = correct_count * 15
-            st.session_state.xp += earned_xp
-            st.session_state.quiz_score = correct_count
-
-            if correct_count == len(st.session_state.interactive_quiz_questions):
-                st.success(f"🎉 **अतीव उत्तमम्! Full Score:** {correct_count}/3 Correct! (+{earned_xp} XP)")
-                st.balloons()
+    else:
+        st.markdown("### Writing / लेखनम्")
+        script = st.radio("Input mode", ["देवनागरी", "IAST / QWERTY"], horizontal=True, key="slpt_writing_script")
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown("**Academic task (10 minutes):** *विद्यालयेषु संस्कृतभाषायाः अध्ययनस्य महत्त्वं विवृणुत।*")
+        st.caption("Explain the importance of studying Sanskrit in schools. Write 120–180 words in the selected script.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        if script == "देवनागरी":
+            st.caption("On-screen helper: अ आ इ ई उ ऊ क ख ग घ ङ  |  Use a system Sanskrit IME for complete conjunct entry.")
+        essay = st.text_area("Your response / भवतः उत्तरम्", height=240, placeholder="अत्र लिखत..." if script == "देवनागरी" else "Write in IAST...", key="slpt_essay")
+        word_count = len(essay.split())
+        st.caption(f"{word_count} words • target: 120–180")
+        if st.button("Submit for AI-assisted scoring", type="primary", key="slpt_submit_writing"):
+            if word_count < 20:
+                st.warning("Please write a longer response before submission.")
             else:
-                st.info(f"📈 **Score:** {correct_count}/3 Correct (+{earned_xp} XP earned). Review the explanations above!")
+                st.success("Submission received. A production worker would score grammar, syntax, vocabulary, task fulfilment, and script consistency on a 0–30 scale.")
+
+    st.divider()
+    st.markdown("##### Score model and delivery safeguards")
+    st.caption("Reading and Listening are scored immediately (0–30 each). Speaking and Writing remain provisional until asynchronous AI scoring completes; persist rubric evidence, model version, confidence, and review status with every score.")
