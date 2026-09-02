@@ -886,4 +886,8 @@ DO NOT wrap with markdown syntax or explanations. Output pure JSON only."""
             st.session_state.xp += earned_xp
             st.session_state.quiz_score = correct_count
             
-            if correct_count == len(st.session_state
+            if correct_count == len(st.session_state.interactive_quiz_questions):
+                st.success(f"🎉 **अतीव उत्तमम्! Full Score:** {correct_count}/3 Correct! (+{earned_xp} XP)")
+                st.balloons()
+            else:
+                st.info(f"📈 **Score:** {correct_count}/3 Correct (+{earned_xp} XP earned). Review the explanations above!")
