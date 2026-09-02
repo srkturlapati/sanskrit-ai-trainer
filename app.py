@@ -31,7 +31,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- SESSION STATES INITIALIZATION ---
+# ==============================================================================
+# 2. STATE PERSISTENCE ARCHITECTURE
+# ==============================================================================
 if "xp" not in st.session_state:
     st.session_state.xp = 350
 if "streak" not in st.session_state:
@@ -45,7 +47,7 @@ if "last_audio_hash" not in st.session_state:
 if "selected_tab" not in st.session_state:
     st.session_state.selected_tab = "🗣️ 1. सम्भाषणम्"
 
-# Button Output Caches (Ensures outputs stay visible on screen)
+# Module Output Caches (Prevents disappearance on widget interaction)
 if "amara_result" not in st.session_state:
     st.session_state.amara_result = None
 if "shabda_result" not in st.session_state:
@@ -67,11 +69,13 @@ if "quiz_submitted" not in st.session_state:
 if "quiz_score" not in st.session_state:
     st.session_state.quiz_score = 0
 
-# --- SIDEBAR: Profile & Settings ---
+# ==============================================================================
+# 3. SIDEBAR & PEDAGOGICAL CONTROLS
+# ==============================================================================
 with st.sidebar:
     st.title("🚩 संस्कृतेन सम्भाषणं कुरु")
     st.caption("AI Sanskrit Spoken Coach & Vedic Knowledge Portal")
-    
+
     api_key = st.text_input(
         "Gemini API Key",
         type="password",
@@ -79,24 +83,30 @@ with st.sidebar:
         value=os.getenv("GEMINI_API_KEY", ""),
         help="Get your key at aistudio.google.com/apikey",
     )
-    
+
     level = st.selectbox(
         "Proficiency Tier / स्तरः",
-        ["A1 - Beginner (प्रथमा)", "A2 - Elementary", "B1 - Intermediate (मध्यमा)", "B2 - Upper Intermediate", "C1 - Advanced (उत्तमा)"],
+        [
+            "A1 - Beginner (प्रथमा)",
+            "A2 - Elementary",
+            "B1 - Intermediate (मध्यमा)",
+            "B2 - Upper Intermediate",
+            "C1 - Advanced (उत्तमा)"
+        ],
         index=0
     )
-    
+
     st.write("---")
     st.subheader("🏆 Your Gamification Stats")
     c1, c2 = st.columns(2)
     c1.metric("🔥 Streak", f"{st.session_state.streak} Days")
     c2.metric("⭐ Points", f"{st.session_state.xp} XP")
     st.caption("🎖️ Rank: **साधकः (Seeker)** • Next Rank at 500 XP")
-    
+
     st.write("---")
     audio_speed = st.radio("Pronunciation Speed", ["Normal (सामान्यम्)", "Slow (मन्दम्)"], index=0)
     is_slow = audio_speed.startswith("Slow")
-    
+
     if st.button("🔄 Reset All Caches & Chat", key="btn_reset_all"):
         st.session_state.talkpal_history = []
         st.session_state.last_audio_hash = ""
@@ -111,7 +121,9 @@ with st.sidebar:
         st.session_state.quiz_score = 0
         st.rerun()
 
-# --- TOP NAVIGATION BAR ---
+# ==============================================================================
+# 4. MASTER NAVIGATION & COLOR PALETTES
+# ==============================================================================
 tab_options = [
     "🗣️ 1. सम्भाषणम्",
     "📖 2. अमरकोशः",
@@ -131,7 +143,6 @@ selected_tab = st.radio(
 )
 st.session_state.selected_tab = selected_tab
 
-# --- FULL-BODY DYNAMIC PALETTES PER TAB ---
 if "सम्भाषणम्" in selected_tab:
     bg_gradient = "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 50%, #C7D2FE 100%)"
     theme_accent = "#4F46E5"
@@ -169,73 +180,26 @@ else:
     theme_header = "#7C2D12"
     border_accent = "#F97316"
 
-# Base CSS Styles
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif;
-    }
-
-    .main .block-container {
-        background: transparent !important;
-        padding-top: 1.5rem !important;
-        padding-bottom: 3rem !important;
-        max-width: 1100px !important;
-    }
-
-    .quiz-card {
-        background: #FFFFFF !important;
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 16px;
-        padding: 18px 20px;
-        margin-bottom: 18px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-    }
-    .quiz-correct {
-        background: #ECFDF5 !important;
-        border-left: 6px solid #10B981 !important;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-top: 10px;
-        color: #065F46 !important;
-    }
-    .quiz-wrong {
-        background: #FEF2F2 !important;
-        border-left: 6px solid #EF4444 !important;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-top: 10px;
-        color: #991B1B !important;
-    }
-
-    .card-ai {
-        background: #FFFFFF !important;
-        border-left: 6px solid #4F46E5 !important;
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
-    }
-    .card-user {
-        background: #DCFCE7 !important;
-        border-left: 6px solid #16A34A !important;
-        border-radius: 16px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        color: #14532D !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Dynamic Background & Themes
 st.markdown(f"""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif;
+    }}
+
     .stApp {{
         background: {bg_gradient} !important;
         background-attachment: fixed !important;
     }}
+
+    .main .block-container {{
+        background: transparent !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1100px !important;
+    }}
+
     .stRadio [role="radiogroup"] {{
         background: rgba(255, 255, 255, 0.85);
         backdrop-filter: blur(10px);
@@ -261,6 +225,7 @@ st.markdown(f"""
         color: #FFFFFF !important;
         border-color: {theme_accent} !important;
     }}
+
     h1, h2, h3, h4 {{
         color: {theme_header} !important;
         font-weight: 800 !important;
@@ -268,6 +233,7 @@ st.markdown(f"""
     p, span, label {{
         color: {theme_dark} !important;
     }}
+
     .content-box {{
         background: #FFFFFF !important;
         border-left: 6px solid {theme_accent} !important;
@@ -276,6 +242,46 @@ st.markdown(f"""
         margin-top: 14px;
         margin-bottom: 16px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+    }}
+    .quiz-card {{
+        background: #FFFFFF !important;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 16px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }}
+    .quiz-correct {{
+        background: #ECFDF5 !important;
+        border-left: 6px solid #10B981 !important;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 10px;
+        color: #065F46 !important;
+    }}
+    .quiz-wrong {{
+        background: #FEF2F2 !important;
+        border-left: 6px solid #EF4444 !important;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 10px;
+        color: #991B1B !important;
+    }}
+    .card-ai {{
+        background: #FFFFFF !important;
+        border-left: 6px solid #4F46E5 !important;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+    }}
+    .card-user {{
+        background: #DCFCE7 !important;
+        border-left: 6px solid #16A34A !important;
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        color: #14532D !important;
     }}
     .voice-panel {{
         background: #FFFFFF !important;
@@ -302,7 +308,7 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
         pass
 
 # ==============================================================================
-# ROBUST UTF-8 GEMINI API CALLER (PERMANENTLY FIXES ASCII CODEC ERRORS)
+# 5. CORE API ENGINE: EXPLICIT UTF-8 BYTE SERIALIZATION
 # ==============================================================================
 def call_gemini_api(key_val, parts_payload, system_inst=""):
     if not key_val:
@@ -318,7 +324,7 @@ def call_gemini_api(key_val, parts_payload, system_inst=""):
     if system_inst:
         req_body["systemInstruction"] = {"parts": [{"text": system_inst}]}
 
-    # Explicit UTF-8 byte serialization prevents Python's http.client from touching ASCII
+    # Binary UTF-8 serialization prevents any Python ASCII socket crash
     raw_payload_bytes = json.dumps(req_body, ensure_ascii=False).encode("utf-8")
 
     for attempt in range(4):
@@ -453,7 +459,6 @@ FALLBACK_QUESTIONS = {
     ]
 }
 
-
 # ==============================================================================
 # TAB 1: सम्भाषणम्
 # ==============================================================================
@@ -505,7 +510,6 @@ if "सम्भाषणम्" in selected_tab:
             st.markdown(msg["content"])
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # Permanent Voice Dock
     st.markdown('<div class="voice-panel">', unsafe_allow_html=True)
     st.markdown("🎙️ **Tap the Mic to Speak / वदतु (Oral Reply):**")
     audio_reply = st.audio_input("Record voice reply:", key=f"tp_rec_{len(st.session_state.talkpal_history)}")
@@ -565,9 +569,8 @@ if "सम्भाषणम्" in selected_tab:
                 else:
                     st.error(f"⚠️ {err}")
 
-
 # ==============================================================================
-# TAB 2: अमरकोशः (ALL 5 INTERACTIVE TOOLS FULLY IMPLEMENTED)
+# TAB 2: अमरकोशः (5 COMPREHENSIVE TOOLS)
 # ==============================================================================
 elif "अमरकोशः" in selected_tab:
     st.subheader("📖 नामलिङ्गानुशासनम् (अमरकोश-मञ्जूषा)")
@@ -614,7 +617,6 @@ elif "अमरकोशः" in selected_tab:
                         "- **अन्वयार्थः (Meaning)**: Clear explanation in Sanskrit and English.\n"
                         "- **समानार्थकाः शब्दाः (Words in this verse)**: Bullet list with genders."
                     )
-
                 elif "पर्यायपदानि" in amara_tool:
                     prompt_amara = (
                         f"Provide the complete list of synonyms from Amarakoṣa for: '{amara_query}' (Scope: {kanda_choice}).\n"
@@ -626,7 +628,6 @@ elif "अमरकोशः" in selected_tab:
                         "### 🏷️ काण्डम् एवं वर्गनिर्देशः:\n"
                         "- State the exact Kāṇḍa and Varga where these appear."
                     )
-
                 elif "बहुविकल्प-प्रश्नाः" in amara_tool:
                     prompt_amara = (
                         f"Generate a 3-question Multiple Choice Quiz on Amarakoṣa synonyms and definitions for: '{amara_query}'.\n"
@@ -640,7 +641,6 @@ elif "अमरकोशः" in selected_tab:
                         "**अमरकोश-प्रमाणम् (Verse reference & explanation):** <Quote the verse or rule>\n"
                         "---"
                     )
-
                 elif "युग्म-मेलनम्" in amara_tool:
                     prompt_amara = (
                         f"Create an engaging 'Match the Following' (युग्म-मेलनम्) challenge based on Amarakoṣa synonyms related to: '{amara_query}' and related terms.\n"
@@ -658,8 +658,7 @@ elif "अमरकोशः" in selected_tab:
                         "- 3 ➔ <Letter> (<Explanation>)\n"
                         "- 4 ➔ <Letter> (<Explanation>)"
                     )
-
-                else:  # Odd One Out
+                else:
                     prompt_amara = (
                         f"Create 3 'Odd One Out' (विजातीयपद-चयनम्) challenges based on Amarakoṣa for the theme: '{amara_query}'.\n"
                         "In each question, provide 4 Sanskrit words where 3 are synonyms in the same Varga of Amarakoṣa, and 1 belongs to a completely different entity or Varga.\n\n"
@@ -685,7 +684,6 @@ elif "अमरकोशः" in selected_tab:
         st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown(st.session_state.amara_result)
         st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ==============================================================================
 # TAB 3: शब्द-धातुरूपाणि
@@ -767,7 +765,6 @@ elif "शब्द-धातुरूपाणि" in selected_tab:
             st.markdown(st.session_state.rupa_drill_result)
             st.markdown('</div>', unsafe_allow_html=True)
 
-
 # ==============================================================================
 # TAB 4: छन्दःशास्त्रम्
 # ==============================================================================
@@ -803,7 +800,6 @@ elif "छन्दःशास्त्रम्" in selected_tab:
         st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown(st.session_state.chandas_result)
         st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ==============================================================================
 # TAB 5: सर्वभाषा-अनुवादकः
@@ -858,7 +854,6 @@ elif "सर्वभाषा-अनुवादकः" in selected_tab:
             st.write("🔊 **उच्चारणम् (Pronunciation):**")
             play_sanskrit_audio(line, slow_mode=is_slow)
         st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ==============================================================================
 # TAB 6: ज्ञान-परीक्षा (INTERACTIVE EVALUATION WITH PASS/FAIL MARKS)
@@ -915,7 +910,6 @@ else:
         st.session_state.interactive_quiz_questions = new_questions
         st.rerun()
 
-    # RENDER INTERACTIVE QUIZ FORM IF QUESTIONS ARE LOADED
     if st.session_state.interactive_quiz_questions:
         st.write("---")
         st.markdown("#### 📝 **अधस्तन-प्रश्नानाम् उत्तराणि चिनोतु (Choose Your Answers):**")
