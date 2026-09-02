@@ -304,9 +304,23 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     except Exception:
         pass
 
-# Robust API Caller with auto-backoff
+# Robust API Caller with types.Part and Unicode encoding safety
 def call_gemini_safe(client, contents, system_instruction=""):
     last_err = None
+    
+    # Ensure contents is converted to official types.Part structures to prevent ASCII codec crashes
+    if isinstance(contents, str):
+        payload = [types.Part.from_text(text=contents)]
+    elif isinstance(contents, list):
+        payload = []
+        for item in contents:
+            if isinstance(item, str):
+                payload.append(types.Part.from_text(text=item))
+            else:
+                payload.append(item)
+    else:
+        payload = contents
+
     for attempt in range(4):
         try:
             config = types.GenerateContentConfig(
@@ -315,7 +329,7 @@ def call_gemini_safe(client, contents, system_instruction=""):
             )
             resp = client.models.generate_content(
                 model="gemini-3.6-flash",
-                contents=contents,
+                contents=payload,
                 config=config
             )
             return resp.text, None
@@ -328,7 +342,7 @@ def call_gemini_safe(client, contents, system_instruction=""):
             
     return None, f"Rate limit reached. Please wait a few moments before retrying. ({last_err})"
 
-# Fallback Scriptural Question Bank (Ensures 100% reliability)
+# Fallback Scriptural Question Bank for Tab 6
 FALLBACK_QUESTIONS = {
     "The 4 Vedas & Samhitas": [
         {
@@ -548,346 +562,48 @@ Always format output strictly as:
 
 
 # ==============================================================================
-# TAB 2: अमरकोशः
+# TAB 2: अमरकोशः (5 COMPREHENSIVE TOOLS)
 # ==============================================================================
 elif "अमरकोशः" in selected_tab:
-    st.subheader("📖 नामलिङ्गानुशासनम् (अमरकोशः)")
-    st.caption("Authentic traditional Sanskrit thesaurus synonyms, gender markers, and original verses.")
+    st.subheader("📖 नामलिङ्गानुशासनम् (अमरकोश-मञ्जूषा)")
+    st.caption("Complete traditional Sanskrit thesaurus suite: Word-to-Śloka Search, Synonyms, MCQs, Matching, and Odd-One-Out.")
+
+    amara_tool = st.radio(
+        "Select Amarakoṣa Activity / गतिविधिः:",
+        [
+            "🔍 श्लोकान्वेषणम् (Find Śloka by Word)",
+            "💎 पर्यायपदानि (Full Synonyms & Genders)",
+            "📝 बहुविकल्प-प्रश्नाः (MCQ Quiz)",
+            "🔗 युग्म-मेलनम् (Matching Challenge)",
+            "🚫 विजातीयपद-चयनम् (Odd One Out)"
+        ],
+        horizontal=True,
+        key="sel_amara_tool"
+    )
 
     col_am1, col_am2 = st.columns([1, 1])
     with col_am1:
-        amara_query = st.text_input("Enter Word or Concept (e.g., सूर्यः, अग्निः, चन्द्रः, जलम्):", value="सूर्यः", key="inp_amara_query")
+        amara_query = st.text_input("Enter Word or Theme (e.g. सूर्यः, अग्निः, जलम्, अश्वः, पृथ्वी, गगनम्):", value="सूर्यः", key="inp_amara_query")
     with col_am2:
-        kanda_choice = st.selectbox("Search Scope / काण्डम्:", ["All (सर्वम्)", "प्रथमकाण्डम् (Heaven, Time, Devas)", "द्वितीयकाण्डम् (Earth, Cities, Forests)", "तृतीयकाण्डम् (General, Synonyms, Genders)"], key="sel_amara_kanda")
+        kanda_choice = st.selectbox("Search Scope / काण्डम्:", ["All (सर्वम्)", "प्रथमकाण्डम् (Heaven, Time, Devas)", "द्वितीयकाण्डम् (Earth, Cities, Forests)", "तृतीयकाण्डम् (General, Genders)"], key="sel_amara_kanda")
 
-    if st.button("🔍 Explore Amarakoṣa / अन्वेषणं कुरु", key="btn_explore_amara"):
+    btn_label = f"⚡ Execute {amara_tool.split('(')[0].strip()}"
+    if st.button(btn_label, key="btn_run_amara"):
         if not api_key:
             st.warning("⚠️ Enter Gemini API key in sidebar.")
         elif not amara_query.strip():
-            st.warning("⚠️ Please enter a term to search.")
+            st.warning("⚠️ Please enter a word to search.")
         else:
             client = genai.Client(api_key=api_key)
-            with st.spinner("अमरकोश-श्लोकाः अन्विष्यन्ते..."):
-                prompt_amara = f"""You are an authentic Sanskrit scholar of Amarakoṣa (नामलिङ्गानुशासनम् by Amarasimha).
-Search Query: {amara_query}
+            with st.spinner(f"अमरकोशे {amara_tool.split('(')[0]} प्रचलति..."):
+                
+                if "श्लोकान्वेषणम्" in amara_tool:
+                    prompt_amara = f"""You are a master scholar of Amarasimha's Amarakoṣa (नामलिङ्गानुशासनम्).
+Search Word: {amara_query}
 Scope: {kanda_choice}
 
-Output Format:
-### 📜 अमरकोश-मूलश्लोकः (Original Verse):
-<Quote authentic Amarakoṣa verse in Devanagari>
-
-### 💎 पर्यायपदानि (Synonyms & Meaning):
-- List all synonyms for the query word with gender (पुं/स्त्री/नपुं) and English meaning.
-
-### 🏷️ काण्डम् एवं वर्गः (Taxonomy):
-- State the Kāṇḍa and Varga.
-"""
-                resp, err = call_gemini_safe(client, prompt_amara)
-                if resp:
-                    st.session_state.amara_result = resp
-                    st.session_state.xp += 10
-                else:
-                    st.error(f"Error: {err}")
-
-    if st.session_state.amara_result:
-        st.markdown('<div class="content-box">', unsafe_allow_html=True)
-        st.markdown(st.session_state.amara_result)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==============================================================================
-# TAB 3: शब्द-धातुरूपाणि
-# ==============================================================================
-elif "शब्द-धातुरूपाणि" in selected_tab:
-    st.subheader("🧩 शब्दरूपाणि एवं धातुरूपाणि (Morphology Engine)")
-    st.caption("Complete 8-case declension charts, 10-lakāra verb conjugation tables, and identification drills.")
-
-    rupa_type = st.radio("Choose Engine:", ["📜 Shabdarupa (Noun Declension)", "⚡ Dhaturoopa (Verb Conjugation)", "🎯 Rupa Identification Drill"], horizontal=True, key="sel_rupa_type")
-
-    if rupa_type == "📜 Shabdarupa (Noun Declension)":
-        shabda_in = st.text_input("Enter Noun / Prātipadika (e.g., राम, लता, फल, हरि, नदी):", value="राम", key="inp_shabda_noun")
-        if st.button("Generate 8 Vibhaktis", key="btn_gen_shabda"):
-            if not api_key:
-                st.warning("⚠️ Enter Gemini API key in sidebar.")
-            elif not shabda_in.strip():
-                st.warning("⚠️ Please enter a noun.")
-            else:
-                client = genai.Client(api_key=api_key)
-                with st.spinner("Generating declension table..."):
-                    p = f"""Generate full 8 Vibhakti table for Sanskrit noun '{shabda_in}'.
-Format as Markdown Table with columns:
-| विभक्तिः (Case) | एकवचनम् (Singular) | द्विवचनम् (Dual) | बहुवचनम् (Plural) | English Meaning |"""
-                    resp, err = call_gemini_safe(client, p)
-                    if resp:
-                        st.session_state.shabda_result = resp
-                    else:
-                        st.error(f"Error: {err}")
-
-        if st.session_state.shabda_result:
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown(st.session_state.shabda_result)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    elif rupa_type == "⚡ Dhaturoopa (Verb Conjugation)":
-        dhatu_in = st.text_input("Enter Root / Dhātu (e.g., गम्, भू, पठ्, कृ, स्था):", value="गम्", key="inp_dhatu_root")
-        lakara_in = st.selectbox("Select Lakāra / Tense:", ["लट् (Present - वर्तमाने)", "लङ् (Past - अनद्यतने भूते)", "लृट् (Future - भविष्यति)", "लोट् (Imperative - आज्ञायाम्)", "विधिलिङ् (Optative)"], key="sel_dhatu_lakara")
-        
-        if st.button("Generate Lakāra Conjugation", key="btn_gen_dhatu"):
-            if not api_key:
-                st.warning("⚠️ Enter Gemini API key in sidebar.")
-            elif not dhatu_in.strip():
-                st.warning("⚠️ Please enter a verb root.")
-            else:
-                client = genai.Client(api_key=api_key)
-                with st.spinner("Generating conjugation table..."):
-                    p = f"""Generate conjugation table for Dhatu '{dhatu_in}' in '{lakara_in}'.
-Format as Markdown Table:
-| पुरुषः (Person) | एकवचनम् | द्विवचनम् | बहुवचनम् | English Meaning |"""
-                    resp, err = call_gemini_safe(client, p)
-                    if resp:
-                        st.session_state.dhatu_result = resp
-                    else:
-                        st.error(f"Error: {err}")
-
-        if st.session_state.dhatu_result:
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown(st.session_state.dhatu_result)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    else:
-        st.write("🎯 **Test Your Form Identification Skills:**")
-        if st.button("⚡ Generate New Identification Challenge", key="btn_gen_rupa_drill"):
-            if not api_key:
-                st.warning("⚠️ Enter Gemini API key in sidebar.")
-            else:
-                client = genai.Client(api_key=api_key)
-                with st.spinner("Generating challenge..."):
-                    p = "Provide a Sanskrit form challenge (e.g. रामेभ्यः). Ask student to identify Pratipadika, Vibhakti, Vacana with 4 MCQ options and spoiler answer with Paninian explanation."
-                    resp, err = call_gemini_safe(client, p)
-                    if resp:
-                        st.session_state.rupa_drill_result = resp
-                    else:
-                        st.error(f"Error: {err}")
-
-        if st.session_state.rupa_drill_result:
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown(st.session_state.rupa_drill_result)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==============================================================================
-# TAB 4: छन्दःशास्त्रम्
-# ==============================================================================
-elif "छन्दःशास्त्रम्" in selected_tab:
-    st.subheader("🎵 छन्दः-शास्त्र-परीक्षकः (Sanskrit Prosody & Meter)")
-    st.caption("Detect Classical & Vedic poetic meters with Laghu-Guru syllabic weight mapping.")
-
-    sample_sloka = "वागर्थाविव सम्पृक्तौ वागर्थप्रतिपत्तये ।\nजगतः पितरौ वन्दे पार्वतीपरमेश्वरौ ॥"
-    user_sloka = st.text_area("Paste Sanskrit Śloka or Pada:", value=sample_sloka, height=90, key="inp_chandas_sloka")
-
-    if st.button("🔬 Analyze Meter / छन्दो-विश्लेषणम्", key="btn_analyze_chandas"):
-        if not api_key:
-            st.warning("⚠️ Enter Gemini API key in sidebar.")
-        elif not user_sloka.strip():
-            st.warning("⚠️ Please enter a verse to analyze.")
-        else:
-            client = genai.Client(api_key=api_key)
-            with st.spinner("Analyzing meter..."):
-                prompt_chandas = f"""Analyze this Sanskrit verse under Pingala's Chandaḥ-śāstra:
-{user_sloka}
-
-Output:
-1. Meter Name (छन्दसो नाम)
-2. Definition rule (लक्षणम्)
-3. Laghu-Guru breakdown (ल-ग) and Gaṇa analysis for each quarter (पाद).
-"""
-                resp, err = call_gemini_safe(client, prompt_chandas)
-                if resp:
-                    st.session_state.chandas_result = resp
-                    st.session_state.xp += 15
-                else:
-                    st.error(f"Error: {err}")
-
-    if st.session_state.chandas_result:
-        st.markdown('<div class="content-box">', unsafe_allow_html=True)
-        st.markdown(st.session_state.chandas_result)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==============================================================================
-# TAB 5: सर्वभाषा-अनुवादकः
-# ==============================================================================
-elif "सर्वभाषा-अनुवादकः" in selected_tab:
-    st.subheader("🌐 सर्वभाषा-संस्कृत-अनुवादकः (Universal Translator)")
-    st.caption("Complete bidirectional translation across Indian languages & Sanskrit with full Padaccheda.")
-
-    t_dir = st.radio("Direction", ["Indian Language / English ➔ Sanskrit", "Sanskrit ➔ Indian Language / English"], horizontal=True, key="sel_trans_dir")
-    
-    dest_lang = "English"
-    if "Sanskrit ➔" in t_dir:
-        dest_lang = st.selectbox("Select Target Language:", ["Telugu (తెలుగు)", "Hindi (हिन्दी)", "English", "Tamil (தமிழ்)", "Kannada (ಕನ್ನಡ)", "Marathi (मराठी)"], key="sel_trans_target_lang")
-
-    trans_in = st.text_area("Enter sentence to translate:", height=80, placeholder="Type in Telugu, Hindi, English or Sanskrit...", key="inp_trans_text")
-
-    if st.button("Execute Translation / अनुवादं कुरु", key="btn_exec_trans"):
-        if not api_key:
-            st.warning("⚠️ Enter Gemini API key in sidebar.")
-        elif not trans_in.strip():
-            st.warning("⚠️ Please enter text to translate.")
-        else:
-            client = genai.Client(api_key=api_key)
-            with st.spinner("Translating..."):
-                if "➔ Sanskrit" in t_dir:
-                    p = f"""Translate into Sanskrit for student level: {level}.
-MANDATORY FORMAT:
-### 🪶 पूर्णवाक्यम् (Complete Sanskrit Sentence):
-**संस्कृतम् (Devanagari):** <FULL SANSKRIT SENTENCE>
-**IAST:** <Full sentence in IAST>
-**English Meaning:** <Complete translation>
-
----
-### 🔍 पदच्छेदः एवं व्याकरणम्:
-- Breakdown of every word with root and vibhakti/lakara.
-
-Input Sentence: {trans_in}"""
-                else:
-                    p = f"Translate this Sanskrit into {dest_lang} and English with Sandhi splits and word-by-word meanings.\n\nInput: {trans_in}"
-
-                resp, err = call_gemini_safe(client, p)
-                if resp:
-                    st.session_state.trans_result = resp
-                    st.session_state.xp += 10
-                else:
-                    st.error(f"Error: {err}")
-
-    if st.session_state.trans_result:
-        st.markdown('<div class="content-box">', unsafe_allow_html=True)
-        st.markdown(st.session_state.trans_result)
-        if "संस्कृतम् (Devanagari):" in st.session_state.trans_result:
-            line = st.session_state.trans_result.split("संस्कृतम् (Devanagari):")[1].split("\n")[0].strip()
-            st.write("🔊 **उच्चारणम् (Pronunciation):**")
-            play_sanskrit_audio(line, slow_mode=is_slow)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==============================================================================
-# TAB 6: ज्ञान-परीक्षा (INTERACTIVE EVALUATION WITH PASS/FAIL MARKS)
-# ==============================================================================
-else:
-    st.subheader("🏹 सनातन-ज्ञान-परीक्षा (Vedic & Epics Quiz)")
-    st.caption("Interactive challenges on the Vedas, Rāmāyaṇa, Mahābhārata, Upaniṣads, and Bhagavad Gītā with instant grading.")
-
-    col_q1, col_q2 = st.columns([1, 1])
-    with col_q1:
-        vedic_topic = st.selectbox(
-            "Select Scripture / शास्त्र-विभागः:",
-            ["The 4 Vedas & Samhitas", "Śrīmad Vālmīki Rāmāyaṇa", "Mahābhārata & Bhagavad Gītā", "Principal Upaniṣads", "Vedāṅgas"],
-            key="sel_vedic_topic"
-        )
-    with col_q2:
-        diff_tier = st.selectbox("Difficulty Tier:", ["Beginner (प्रथमा)", "Intermediate (मध्यमा)", "Advanced (उत्तमा)"], key="sel_vedic_tier")
-
-    if st.button("⚡ Generate 3-Question Challenge / नूतन-प्रश्नावली", key="btn_gen_vedic_quiz"):
-        st.session_state.quiz_submitted = False
-        st.session_state.interactive_quiz_questions = None
-
-        new_questions = None
-        if api_key:
-            client = genai.Client(api_key=api_key)
-            with st.spinner("Generating fresh questions from authentic scriptures..."):
-                prompt_json = f"""You are an authentic Vedic and Sanatana Dharma Acharya.
-Generate 3 challenging multiple-choice questions on '{vedic_topic}' for level '{diff_tier}'.
-
-Return ONLY a valid JSON list of 3 objects with exact keys:
-[
-  {{
-    "question": "<Question in Devanagari Sanskrit with English in parentheses>",
-    "options": ["A) <Option 1>", "B) <Option 2>", "C) <Option 3>", "D) <Option 4>"],
-    "correct_idx": <0, 1, 2, or 3 representing the index of correct option>,
-    "ref": "<Authentic scriptural reference and explanation in Sanskrit/English>"
-  }}
-]
-DO NOT wrap with markdown syntax or explanations. Output pure JSON only."""
-                
-                resp, err = call_gemini_safe(client, prompt_json)
-                if resp:
-                    try:
-                        clean_json = resp.strip()
-                        if clean_json.startswith("```"):
-                            clean_json = clean_json.split("\n", 1)[1].rsplit("\n", 1)[0]
-                        new_questions = json.loads(clean_json)
-                    except Exception:
-                        new_questions = None
-
-        # Fallback to guaranteed authentic questions if API is busy or unconfigured
-        if not new_questions:
-            new_questions = FALLBACK_QUESTIONS.get(vedic_topic, FALLBACK_QUESTIONS["The 4 Vedas & Samhitas"])
-        
-        st.session_state.interactive_quiz_questions = new_questions
-        st.rerun()
-
-    # RENDER INTERACTIVE QUIZ FORM IF QUESTIONS ARE LOADED
-    if st.session_state.interactive_quiz_questions:
-        st.write("---")
-        st.markdown(f"#### 📝 **अधस्तन-प्रश्नानाम् उत्तराणि चिनोतु (Choose Your Answers):**")
-
-        user_choices = []
-        with st.form("interactive_quiz_form"):
-            for i, q in enumerate(st.session_state.interactive_quiz_questions):
-                st.markdown(f'<div class="quiz-card">', unsafe_allow_html=True)
-                st.markdown(f"**प्रश्नः {i+1} : {q['question']}**")
-                choice = st.radio(
-                    label=f"q_{i}",
-                    options=q["options"],
-                    index=0,
-                    key=f"user_choice_{i}",
-                    label_visibility="collapsed"
-                )
-                user_choices.append(choice)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            submit_quiz = st.form_submit_button("🏁 Submit Answers / उत्तरं समर्पयतु")
-
-        if submit_quiz:
-            st.session_state.quiz_submitted = True
-            correct_count = 0
-            
-            st.markdown("### 📊 परीक्षा-परिणामः (Quiz Results):")
-            
-            for i, q in enumerate(st.session_state.interactive_quiz_questions):
-                selected_str = user_choices[i]
-                correct_str = q["options"][q["correct_idx"]]
-                is_correct = (selected_str == correct_str)
-                
-                st.markdown(f'<div class="quiz-card">', unsafe_allow_html=True)
-                st.markdown(f"**प्रश्नः {i+1} : {q['question']}**")
-                
-                if is_correct:
-                    correct_count += 1
-                    st.markdown(f"""
-                    <div class="quiz-correct">
-                        ✅ <strong>सम्यक् उत्तरम्! (Correct Answer)</strong><br>
-                        <strong>भवतः उत्तरम् (Your Choice):</strong> {selected_str}<br>
-                        📜 <strong>प्रमाणम् (Scriptural Reference):</strong> {q['ref']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="quiz-wrong">
-                        ❌ <strong>अशुद्धम् (Incorrect)</strong><br>
-                        <strong>भवतः उत्तरम् (Your Choice):</strong> {selected_str}<br>
-                        🎯 <strong>शुद्धम् उत्तरम् (Correct Answer):</strong> {correct_str}<br>
-                        📜 <strong>प्रमाणम् (Scriptural Reference):</strong> {q['ref']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            earned_xp = correct_count * 15
-            st.session_state.xp += earned_xp
-            st.session_state.quiz_score = correct_count
-            
-            if correct_count == len(st.session_state.interactive_quiz_questions):
-                st.success(f"🎉 **अतीव उत्तमम्! Full Score:** {correct_count}/3 Correct! (+{earned_xp} XP)")
-                st.balloons()
-            else:
-                st.info(f"📈 **Score:** {correct_count}/3 Correct (+{earned_xp} XP earned). Review the explanations above!")
+Find the exact verse(s) where '{amara_query}' is defined.
+Format:
+### 📜 अमरकोश-मूलश्लोकः (Authentic Verse):
+```sanskrit
+<Full Amarakoṣa Devanagari from mentioning verse {amara_query}>
