@@ -1,17 +1,23 @@
 import sys
 import os
-import time
-import io
-import hashlib
 
-# Ensure UTF-8 encoding across all runtime environments
+# 1. Enforce strict UTF-8 environment globally before any other imports
+os.environ["PYTHONIOENCODING"] = "utf-8"
+os.environ["LANG"] = "C.UTF-8"
+os.environ["LC_ALL"] = "C.UTF-8"
+
 if sys.stdout.encoding != 'utf-8':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
 
+import time
+import io
+import hashlib
+
 from google import genai
+from google.genai import types
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 from gtts import gTTS
@@ -85,14 +91,15 @@ def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
     except Exception:
         pass
 
-# Robust API Caller utilizing gemini-3.6-flash with exponential backoff
+# Robust API Caller with types.GenerateContentConfig and UTF-8 handling
 def call_gemini_safe(client, contents, system_instruction=""):
     last_err = None
     for attempt in range(4):
         try:
-            config = {"temperature": 0.2}
-            if system_instruction:
-                config["system_instruction"] = system_instruction
+            config = types.GenerateContentConfig(
+                temperature=0.2,
+                system_instruction=system_instruction if system_instruction else None
+            )
             resp = client.models.generate_content(
                 model="gemini-3.6-flash",
                 contents=contents,
@@ -237,15 +244,13 @@ Always format output strictly as:
             st.session_state.xp += 15
 
             with st.spinner("आचार्यः शृणोति एवं चिन्तयति..."):
+                # Official typed Part structure for audio bytes
+                audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
+                prompt_part = types.Part.from_text(text="Listen to this spoken Sanskrit, transcribe what was said, reply in Sanskrit with translation, and provide grammatical feedback.")
+                
                 reply, err = call_gemini_safe(
                     client=client,
-                    contents=[{
-                        "role": "user",
-                        "parts": [
-                            {"inline_data": {"mime_type": "audio/wav", "data": audio_bytes}},
-                            {"text": f"{sys_talkpal}\nTranscribe spoken audio, reply in Sanskrit with translation and feedback."}
-                        ]
-                    }],
+                    contents=[audio_part, prompt_part],
                     system_instruction=sys_talkpal
                 )
                 if reply:
@@ -271,10 +276,13 @@ Always format output strictly as:
 
         st.session_state.talkpal_history.append({"role": "user", "content": user_text})
         st.session_state.xp += 5
-        contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": str(m["content"])}]} for m in st.session_state.talkpal_history]
+        
+        # Build chat contents as clean list of strings / parts
+        chat_contents = [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.talkpal_history]
+        chat_contents.append(f"USER: {user_text}")
 
         with st.spinner("आचार्यः लिखति..."):
-            reply, err = call_gemini_safe(client, contents, sys_talkpal)
+            reply, err = call_gemini_safe(client, "\n\n".join(chat_contents), sys_talkpal)
             if reply:
                 st.session_state.talkpal_history.append({"role": "model", "content": reply})
                 st.rerun()
@@ -303,18 +311,21 @@ with tab_amara:
             st.stop()
         client = genai.Client(api_key=api_key)
         with st.spinner("अमरकोश-श्लोकाः अन्विष्यन्ते..."):
-            prompt_amara = (
-                "You are an authentic Sanskrit scholar of Amarakoṣa (नामलिङ्गानुशासनम् by Amarasimha).\n"
-                f"Query: {amara_query}\nScope: {kanda_choice}\n\n"
-                "Output Format:\n"
-                "### 📜 अमरकोश-मूलश्लोकः (Original Verse):\n"
-                "<Quote original Amarakoṣa verse in Devanagari>\n\n"
-                "### 💎 पर्यायपदानि (Synonyms & Meaning):\n"
-                "- List all synonyms for the query word with gender (पुं/स्त्री/नपुं) and English meaning.\n\n"
-                "### 🏷️ काण्डम् एवं वर्गः (Taxonomy):\n"
-                "- State the Kāṇḍa and Varga."
-            )
-            resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": prompt_amara}]}])
+            prompt_amara = f"""You are an authentic Sanskrit scholar of Amarakoṣa (नामलिङ्गानुशासनम् by Amarasimha).
+Search Query: {amara_query}
+Scope: {kanda_choice}
+
+Output Format:
+### 📜 अमरकोश-मूलश्लोकः (Original Verse):
+<Quote authentic Amarakoṣa verse in Devanagari>
+
+### 💎 पर्यायपदानि (Synonyms & Meaning):
+- List all synonyms for the query word with gender (पुं/स्त्री/नपुं) and English meaning.
+
+### 🏷️ काण्डम् एवं वर्गः (Taxonomy):
+- State the Kāṇḍa and Varga.
+"""
+            resp, err = call_gemini_safe(client, prompt_amara)
             if resp:
                 st.markdown('<div class="result-card">', unsafe_allow_html=True)
                 st.markdown(resp)
@@ -346,7 +357,7 @@ with tab_rupa:
                 p = f"""Generate full 8 Vibhakti table for Sanskrit noun '{shabda_in}'.
 Format as Markdown Table with columns:
 | विभक्तिः (Case) | एकवचनम् (Singular) | द्विवचनम् (Dual) | बहुवचनम् (Plural) | English Meaning |"""
-                resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": p}]}])
+                resp, err = call_gemini_safe(client, p)
                 if resp:
                     st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown(resp)
@@ -364,7 +375,7 @@ Format as Markdown Table with columns:
                 p = f"""Generate conjugation table for Dhatu '{dhatu_in}' in '{lakara_in}'.
 Format as Markdown Table:
 | पुरुषः (Person) | एकवचनम् | द्विवचनम् | बहुवचनम् | English Meaning |"""
-                resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": p}]}])
+                resp, err = call_gemini_safe(client, p)
                 if resp:
                     st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown(resp)
@@ -379,7 +390,7 @@ Format as Markdown Table:
             client = genai.Client(api_key=api_key)
             with st.spinner("Generating challenge..."):
                 p = "Provide a Sanskrit form challenge (e.g. रामेभ्यः). Ask student to identify Pratipadika, Vibhakti, Vacana with 4 MCQ options and spoiler answer with Paninian explanation."
-                resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": p}]}])
+                resp, err = call_gemini_safe(client, p)
                 if resp:
                     st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown(resp)
@@ -404,14 +415,15 @@ with tab_chandas:
             st.stop()
         client = genai.Client(api_key=api_key)
         with st.spinner("Analyzing meter..."):
-            prompt_chandas = (
-                f"Analyze this Sanskrit verse under Pingala's Chandaḥ-śāstra:\n{user_sloka}\n\n"
-                "Output:\n"
-                "1. Meter Name (छन्दसो नाम)\n"
-                "2. Definition rule (लक्षणम्)\n"
-                "3. Laghu-Guru breakdown (ल-ग) and Gaṇa analysis for each quarter (पाद)."
-            )
-            resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": prompt_chandas}]}])
+            prompt_chandas = f"""Analyze this Sanskrit verse under Pingala's Chandaḥ-śāstra:
+{user_sloka}
+
+Output:
+1. Meter Name (छन्दसो नाम)
+2. Definition rule (लक्षणम्)
+3. Laghu-Guru breakdown (ल-ग) and Gaṇa analysis for each quarter (पाद).
+"""
+            resp, err = call_gemini_safe(client, prompt_chandas)
             if resp:
                 st.markdown('<div class="result-card">', unsafe_allow_html=True)
                 st.markdown(resp)
@@ -457,11 +469,13 @@ MANDATORY FORMAT:
 
 ---
 ### 🔍 पदच्छेदः एवं व्याकरणम्:
-- Breakdown of every word with root and vibhakti/lakara."""
-            else:
-                p = f"Translate this Sanskrit into {dest_lang} and English with Sandhi splits and word-by-word meanings."
+- Breakdown of every word with root and vibhakti/lakara.
 
-            resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": f"{p}\nInput: {trans_in}"}]}])
+Input Sentence: {trans_in}"""
+            else:
+                p = f"Translate this Sanskrit into {dest_lang} and English with Sandhi splits and word-by-word meanings.\n\nInput: {trans_in}"
+
+            resp, err = call_gemini_safe(client, p)
             if resp:
                 st.markdown('<div class="result-card">', unsafe_allow_html=True)
                 st.markdown(resp)
@@ -499,11 +513,9 @@ with tab_vedic:
             st.stop()
         client = genai.Client(api_key=api_key)
         with st.spinner("Creating questions from authentic scriptures..."):
-            prompt_vedic = (
-                f"Generate a 3-question MCQ quiz on '{vedic_topic}' for Level '{diff_tier}'.\n"
-                "Provide Sanskrit question, 4 options (A,B,C,D), correct answer, and authentic scriptural reference."
-            )
-            resp, err = call_gemini_safe(client, [{"role": "user", "parts": [{"text": prompt_vedic}]}])
+            prompt_vedic = f"""Generate a 3-question MCQ quiz on '{vedic_topic}' for Level '{diff_tier}'.
+Provide Sanskrit question, 4 options (A,B,C,D), correct answer, and authentic scriptural reference."""
+            resp, err = call_gemini_safe(client, prompt_vedic)
             if resp:
                 st.session_state.active_quiz_data = resp
                 st.session_state.xp += 20
