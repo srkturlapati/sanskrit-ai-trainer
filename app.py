@@ -30,238 +30,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- INJECT COMPLETE TAB-BODY BACKGROUND DYNAMICS ---
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif;
-    }
-
-    /* Master Tabs Top Navigation Buttons */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        border-bottom: 3px solid #CBD5E1;
-        padding-bottom: 6px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 52px;
-        border-radius: 14px 14px 0px 0px;
-        font-size: 15px;
-        font-weight: 700;
-        padding: 10px 22px;
-        background-color: #F1F5F9;
-        border: 1px solid #E2E8F0;
-        color: #475569;
-        transition: all 0.25s ease-in-out;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #0F172A !important;
-        color: #FFFFFF !important;
-        border-color: #0F172A !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
-    }
-
-    /* ==========================================================================
-       TAB 1 ENTIRE BODY: ROYAL INDIGO & VIOLET CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(1) {
-        background: linear-gradient(180deg, #EEF2FF 0%, #E0E7FF 100%);
-        border: 2px solid #6366F1;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #1E1B4B;
-        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(1) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(1) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(1) h4 {
-        color: #312E81 !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(1) .stMarkdown p {
-        color: #1E1B4B;
-    }
-
-    /* ==========================================================================
-       TAB 2 ENTIRE BODY: VEDIC SAFFRON & GOLD CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(2) {
-        background: linear-gradient(180deg, #FFFBEB 0%, #FEF3C7 100%);
-        border: 2px solid #F59E0B;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #78350F;
-        box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(2) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(2) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(2) h4 {
-        color: #78350F !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(2) .stMarkdown p {
-        color: #451A03;
-    }
-
-    /* ==========================================================================
-       TAB 3 ENTIRE BODY: EMERALD FOREST & SAGE CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(3) {
-        background: linear-gradient(180deg, #F0FDF4 0%, #DCFCE7 100%);
-        border: 2px solid #10B981;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #064E3B;
-        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(3) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(3) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(3) h4 {
-        color: #064E3B !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(3) .stMarkdown p {
-        color: #064E3B;
-    }
-
-    /* ==========================================================================
-       TAB 4 ENTIRE BODY: LOTUS RUBY & ROSE CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(4) {
-        background: linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 100%);
-        border: 2px solid #F43F5E;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #881337;
-        box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(4) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(4) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(4) h4 {
-        color: #881337 !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(4) .stMarkdown p {
-        color: #881337;
-    }
-
-    /* ==========================================================================
-       TAB 5 ENTIRE BODY: DEEP OCEAN & CYAN AZURE CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(5) {
-        background: linear-gradient(180deg, #ECFEFF 0%, #CFFAFE 100%);
-        border: 2px solid #06B6D4;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #164E63;
-        box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(5) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(5) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(5) h4 {
-        color: #164E63 !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(5) .stMarkdown p {
-        color: #164E63;
-    }
-
-    /* ==========================================================================
-       TAB 6 ENTIRE BODY: SURYA SUNSET & ORANGE CANVAS
-       ========================================================================== */
-    div[data-testid="stTabsContent"]:nth-of-type(6) {
-        background: linear-gradient(180deg, #FFF7ED 0%, #FFEDD5 100%);
-        border: 2px solid #F97316;
-        border-radius: 0px 0px 24px 24px;
-        padding: 28px 24px;
-        color: #7C2D12;
-        box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.2);
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(6) h2,
-    div[data-testid="stTabsContent"]:nth-of-type(6) h3,
-    div[data-testid="stTabsContent"]:nth-of-type(6) h4 {
-        color: #7C2D12 !important;
-        font-weight: 800;
-    }
-    div[data-testid="stTabsContent"]:nth-of-type(6) .stMarkdown p {
-        color: #7C2D12;
-    }
-
-    /* Shared High-Contrast Output Containers */
-    .unified-card {
-        background: #FFFFFF !important;
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-top: 16px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-    }
-    .card-ai {
-        background: #FFFFFF !important;
-        border-left: 6px solid #4F46E5 !important;
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 10px rgba(79, 70, 229, 0.08);
-    }
-    .card-user {
-        background: #DCFCE7 !important;
-        border-left: 6px solid #16A34A !important;
-        border-radius: 16px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        color: #14532D;
-    }
-    .voice-dock {
-        background: #FFFFFF !important;
-        border: 2px dashed #4F46E5 !important;
-        border-radius: 16px;
-        padding: 14px 20px;
-        margin: 14px 0px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Helper: Sanskrit Audio Player (TTS)
-def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
-    try:
-        clean = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
-        if not clean:
-            return
-        tts = gTTS(text=clean, lang='hi', slow=slow_mode)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        st.audio(fp, format="audio/mp3")
-    except Exception:
-        pass
-
-# Robust API Caller with types.GenerateContentConfig
-def call_gemini_safe(client, contents, system_instruction=""):
-    last_err = None
-    for attempt in range(4):
-        try:
-            config = types.GenerateContentConfig(
-                temperature=0.2,
-                system_instruction=system_instruction if system_instruction else None
-            )
-            resp = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=contents,
-                config=config
-            )
-            return resp.text, None
-        except Exception as e:
-            last_err = str(e)
-            if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
-                time.sleep(3 * (attempt + 1))
-                continue
-            return None, last_err
-            
-    return None, f"Rate limit reached. Please wait a few moments before retrying. ({last_err})"
-
 # --- SESSION STATES ---
 if "xp" not in st.session_state:
     st.session_state.xp = 350
@@ -275,8 +43,10 @@ if "last_audio_hash" not in st.session_state:
     st.session_state.last_audio_hash = ""
 if "active_quiz_data" not in st.session_state:
     st.session_state.active_quiz_data = None
+if "selected_tab" not in st.session_state:
+    st.session_state.selected_tab = "🗣️ 1. सम्भाषणम्"
 
-# --- SIDEBAR: Profile & Settings ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("🚩 संस्कृतेन सम्भाषणं कुरु")
     st.caption("AI Sanskrit Spoken Coach & Vedic Knowledge Portal")
@@ -312,21 +82,213 @@ with st.sidebar:
         st.session_state.active_quiz_data = None
         st.rerun()
 
-# --- MASTER TOP TABS ---
-tab_talkpal, tab_amara, tab_rupa, tab_chandas, tab_trans, tab_vedic = st.tabs([
+# --- TOP NAVIGATION PILLS (SWITCHES ENTIRE BODY COLOR DYNAMICALLY) ---
+tab_options = [
     "🗣️ 1. सम्भाषणम्",
     "📖 2. अमरकोशः",
     "🧩 3. शब्द-धातुरूपाणि",
     "🎵 4. छन्दःशास्त्रम्",
     "🌐 5. सर्वभाषा-अनुवादकः",
     "🏹 6. ज्ञान-परीक्षा"
-])
+]
+
+selected_tab = st.radio(
+    "Navigation",
+    tab_options,
+    index=tab_options.index(st.session_state.selected_tab) if st.session_state.selected_tab in tab_options else 0,
+    horizontal=True,
+    label_visibility="collapsed"
+)
+st.session_state.selected_tab = selected_tab
+
+# --- DYNAMIC FULL-BODY COLOR DEFINITIONS ---
+if "सम्भाषणम्" in selected_tab:
+    # Royal Indigo & Violet
+    bg_gradient = "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 50%, #C7D2FE 100%)"
+    theme_accent = "#4F46E5"
+    theme_dark = "#1E1B4B"
+    theme_header = "#312E81"
+    border_accent = "#6366F1"
+elif "अमरकोशः" in selected_tab:
+    # Vedic Saffron & Gold Amber
+    bg_gradient = "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 50%, #FDE68A 100%)"
+    theme_accent = "#D97706"
+    theme_dark = "#451A03"
+    theme_header = "#78350F"
+    border_accent = "#F59E0B"
+elif "शब्द-धातुरूपाणि" in selected_tab:
+    # Emerald Sage & Forest Green
+    bg_gradient = "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 50%, #BBF7D0 100%)"
+    theme_accent = "#059669"
+    theme_dark = "#064E3B"
+    theme_header = "#064E3B"
+    border_accent = "#10B981"
+elif "छन्दःशास्त्रम्" in selected_tab:
+    # Lotus Ruby & Crimson Rose
+    bg_gradient = "linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 50%, #FECDD3 100%)"
+    theme_accent = "#E11D48"
+    theme_dark = "#881337"
+    theme_header = "#881337"
+    border_accent = "#F43F5E"
+elif "सर्वभाषा-अनुवादकः" in selected_tab:
+    # Deep Ocean Turquoise & Azure
+    bg_gradient = "linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 50%, #A5F3FC 100%)"
+    theme_accent = "#0891B2"
+    theme_dark = "#164E63"
+    theme_header = "#164E63"
+    border_accent = "#06B6D4"
+else:
+    # Surya Sunset & Sacred Orange
+    bg_gradient = "linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 50%, #FED7AA 100%)"
+    theme_accent = "#EA580C"
+    theme_dark = "#7C2D12"
+    theme_header = "#7C2D12"
+    border_accent = "#F97316"
+
+# INJECT ROOT COLOR OVERRIDE (Paints the ENTIRE page from edge to edge)
+st.markdown(f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
+    
+    html, body, [class*="css"] {{
+        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif;
+    }}
+
+    /* 1. FORCE THE ENTIRE ROOT BODY CANVAS TO THE TAB'S COLOR */
+    .stApp {{
+        background: {bg_gradient} !important;
+        background-attachment: fixed !important;
+    }}
+    
+    .main .block-container {{
+        background: transparent !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1100px !important;
+    }}
+
+    /* 2. TOP HORIZONTAL MENU BUTTONS */
+    .stRadio [role="radiogroup"] {{
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(10px);
+        padding: 8px 12px;
+        border-radius: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        border: 2px solid {border_accent};
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }}
+    .stRadio [role="radiogroup"] label {{
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 8px 16px;
+        font-weight: 700;
+        color: {theme_dark} !important;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease-in-out;
+    }}
+    .stRadio [role="radiogroup"] label[data-checked="true"] {{
+        background: {theme_accent} !important;
+        color: #FFFFFF !important;
+        border-color: {theme_accent} !important;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }}
+
+    /* 3. HEADINGS & TYPOGRAPHY DYNAMICS */
+    h1, h2, h3, h4 {{
+        color: {theme_header} !important;
+        font-weight: 800 !important;
+    }}
+    p, span, label {{
+        color: {theme_dark} !important;
+    }}
+
+    /* 4. RESULT CARDS & BUBBLES WITH CRISP CONTRAST */
+    .content-box {{
+        background: #FFFFFF !important;
+        border-left: 6px solid {theme_accent} !important;
+        border-radius: 18px;
+        padding: 22px 26px;
+        margin-top: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+        border-top: 1px solid rgba(0,0,0,0.05);
+        border-right: 1px solid rgba(0,0,0,0.05);
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }}
+    
+    .card-ai {{
+        background: #FFFFFF !important;
+        border-left: 6px solid #4F46E5 !important;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+    }}
+    .card-user {{
+        background: #DCFCE7 !important;
+        border-left: 6px solid #16A34A !important;
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        color: #14532D !important;
+    }}
+    .voice-panel {{
+        background: #FFFFFF !important;
+        border: 2px dashed {theme_accent} !important;
+        border-radius: 18px;
+        padding: 16px 22px;
+        margin: 16px 0px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    }}
+</style>
+""", unsafe_allow_html=True)
+
+# Helper: Sanskrit Audio Player (TTS)
+def play_sanskrit_audio(text_to_speak: str, slow_mode: bool = False):
+    try:
+        clean = text_to_speak.replace('*', '').replace('#', '').replace('-', '').replace('[', '').replace(']', '').strip()
+        if not clean:
+            return
+        tts = gTTS(text=clean, lang='hi', slow=slow_mode)
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        st.audio(fp, format="audio/mp3")
+    except Exception:
+        pass
+
+# Robust API Caller using official types.GenerateContentConfig
+def call_gemini_safe(client, contents, system_instruction=""):
+    last_err = None
+    for attempt in range(4):
+        try:
+            config = types.GenerateContentConfig(
+                temperature=0.2,
+                system_instruction=system_instruction if system_instruction else None
+            )
+            resp = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=contents,
+                config=config
+            )
+            return resp.text, None
+        except Exception as e:
+            last_err = str(e)
+            if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
+                time.sleep(3 * (attempt + 1))
+                continue
+            return None, last_err
+            
+    return None, f"Rate limit reached. Please wait a few moments before retrying. ({last_err})"
 
 
 # ==============================================================================
-# TAB 1: सम्भाषणम् (ROYAL INDIGO ENTIRE BODY)
+# TAB 1: सम्भाषणम् (ROYAL INDIGO CANVAS)
 # ==============================================================================
-with tab_talkpal:
+if "सम्भाषणम्" in selected_tab:
     st.subheader("🗣️ संस्कृतेन सम्भाषणं कुरु (Spoken Sanskrit AI)")
     st.caption("Oral-first interactive conversational tutor with instantaneous phonetic & grammatical guidance.")
 
@@ -373,8 +335,8 @@ Always format output strictly as:
             st.markdown('</div>', unsafe_allow_html=True)
 
     # Permanent Voice Dock
-    st.markdown('<div class="voice-dock">', unsafe_allow_html=True)
-    st.markdown("🎙️ **Tap the Mic to Speak / वदतु (Oral Voice Reply):**")
+    st.markdown('<div class="voice-panel">', unsafe_allow_html=True)
+    st.markdown("🎙️ **Tap the Mic to Speak / वदतु (Oral Reply):**")
     audio_reply = st.audio_input("Record voice reply:", key=f"tp_rec_{len(st.session_state.talkpal_history)}")
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -437,9 +399,9 @@ Always format output strictly as:
 
 
 # ==============================================================================
-# TAB 2: अमरकोशः (VEDIC SAFFRON & GOLD ENTIRE BODY)
+# TAB 2: अमरकोशः (VEDIC SAFFRON & GOLD CANVAS)
 # ==============================================================================
-with tab_amara:
+elif "अमरकोशः" in selected_tab:
     st.subheader("📖 नामलिङ्गानुशासनम् (अमरकोशः)")
     st.caption("Authentic traditional Sanskrit thesaurus synonyms, gender markers, and original verses.")
 
@@ -471,7 +433,7 @@ Output Format:
 """
             resp, err = call_gemini_safe(client, prompt_amara)
             if resp:
-                st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                st.markdown('<div class="content-box">', unsafe_allow_html=True)
                 st.markdown(resp)
                 st.markdown('</div>', unsafe_allow_html=True)
                 st.session_state.xp += 10
@@ -480,9 +442,9 @@ Output Format:
 
 
 # ==============================================================================
-# TAB 3: शब्द-धातुरूपाणि (EMERALD SAGE ENTIRE BODY)
+# TAB 3: शब्द-धातुरूपाणि (EMERALD SAGE CANVAS)
 # ==============================================================================
-with tab_rupa:
+elif "शब्द-धातुरूपाणि" in selected_tab:
     st.subheader("🧩 शब्दरूपाणि एवं धातुरूपाणि (Morphology Engine)")
     st.caption("Complete 8-case declension charts, 10-lakāra verb conjugation tables, and identification drills.")
 
@@ -501,7 +463,7 @@ Format as Markdown Table with columns:
 | विभक्तिः (Case) | एकवचनम् (Singular) | द्विवचनम् (Dual) | बहुवचनम् (Plural) | English Meaning |"""
                 resp, err = call_gemini_safe(client, p)
                 if resp:
-                    st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                    st.markdown('<div class="content-box">', unsafe_allow_html=True)
                     st.markdown(resp)
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -519,7 +481,7 @@ Format as Markdown Table:
 | पुरुषः (Person) | एकवचनम् | द्विवचनम् | बहुवचनम् | English Meaning |"""
                 resp, err = call_gemini_safe(client, p)
                 if resp:
-                    st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                    st.markdown('<div class="content-box">', unsafe_allow_html=True)
                     st.markdown(resp)
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -534,15 +496,15 @@ Format as Markdown Table:
                 p = "Provide a Sanskrit form challenge (e.g. रामेभ्यः). Ask student to identify Pratipadika, Vibhakti, Vacana with 4 MCQ options and spoiler answer with Paninian explanation."
                 resp, err = call_gemini_safe(client, p)
                 if resp:
-                    st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                    st.markdown('<div class="content-box">', unsafe_allow_html=True)
                     st.markdown(resp)
                     st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==============================================================================
-# TAB 4: छन्दःशास्त्रम् (LOTUS RUBY ENTIRE BODY)
+# TAB 4: छन्दःशास्त्रम् (LOTUS RUBY CANVAS)
 # ==============================================================================
-with tab_chandas:
+elif "छन्दःशास्त्रम्" in selected_tab:
     st.subheader("🎵 छन्दः-शास्त्र-परीक्षकः (Sanskrit Prosody & Meter)")
     st.caption("Detect Classical & Vedic poetic meters with Laghu-Guru syllabic weight mapping.")
 
@@ -565,7 +527,7 @@ Output:
 """
             resp, err = call_gemini_safe(client, prompt_chandas)
             if resp:
-                st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                st.markdown('<div class="content-box">', unsafe_allow_html=True)
                 st.markdown(resp)
                 st.markdown('</div>', unsafe_allow_html=True)
                 st.session_state.xp += 15
@@ -574,9 +536,9 @@ Output:
 
 
 # ==============================================================================
-# TAB 5: सर्वभाषा-अनुवादकः (DEEP OCEAN CYAN ENTIRE BODY)
+# TAB 5: सर्वभाषा-अनुवादकः (DEEP OCEAN CYAN CANVAS)
 # ==============================================================================
-with tab_trans:
+elif "सर्वभाषा-अनुवादकः" in selected_tab:
     st.subheader("🌐 सर्वभाषा-संस्कृत-अनुवादकः (Universal Translator)")
     st.caption("Complete bidirectional translation across Indian languages & Sanskrit with full Padaccheda.")
 
@@ -615,7 +577,7 @@ Input Sentence: {trans_in}"""
 
             resp, err = call_gemini_safe(client, p)
             if resp:
-                st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+                st.markdown('<div class="content-box">', unsafe_allow_html=True)
                 st.markdown(resp)
                 st.markdown('</div>', unsafe_allow_html=True)
                 st.session_state.xp += 10
@@ -628,9 +590,9 @@ Input Sentence: {trans_in}"""
 
 
 # ==============================================================================
-# TAB 6: ज्ञान-परीक्षा (SURYA SUNSET ORANGE ENTIRE BODY)
+# TAB 6: ज्ञान-परीक्षा (SURYA SUNSET ORANGE CANVAS)
 # ==============================================================================
-with tab_vedic:
+else:
     st.subheader("🏹 सनातन-ज्ञान-परीक्षा (Vedic & Epics Quiz)")
     st.caption("Interactive gamified challenges on the Vedas, Rāmāyaṇa, Mahābhārata, Upaniṣads, and Bhagavad Gītā.")
 
@@ -657,6 +619,6 @@ Provide Sanskrit question, 4 options (A,B,C,D), correct answer, and authentic sc
                 st.session_state.xp += 20
 
     if st.session_state.active_quiz_data:
-        st.markdown('<div class="unified-card">', unsafe_allow_html=True)
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown(st.session_state.active_quiz_data)
         st.markdown('</div>', unsafe_allow_html=True)
