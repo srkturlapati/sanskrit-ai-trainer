@@ -1,5 +1,4 @@
-streamlit
-google-genai
-indic-transliteration
-gTTS
-pypdf
+streamlit>=1.35.0
+requests>=2.31.0
+indic-transliteration>=2.3.56
+gTTS>=2.5.1
